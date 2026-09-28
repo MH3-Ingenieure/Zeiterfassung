@@ -160,7 +160,19 @@ const Cloud = (() => {
     const ids = S.sync.ids;
     if (ids && ids.site === cfg.siteUrl && KINDS.every(k => ids[k])) return ids;
     const u = new URL(cfg.siteUrl);
-    const site = await g(`/sites/${u.hostname}:${u.pathname.replace(/\/+$/, '')}`);
+    const sitePath = u.pathname.replace(/\/+$/, '');
+    let site;
+    try { site = await g(`/sites/${u.hostname}:${sitePath}`); }
+    catch (e) {
+      if (/invalid hostname/i.test(e.message)) {
+        // richtige SharePoint-Adresse des Mandanten ermitteln und als Hinweis anzeigen
+        let hint = '';
+        try { const root = await g('/sites/root?$select=webUrl'); hint = ` Richtige Adresse für config.js: ${root.webUrl}${sitePath}`; } catch { }
+        throw new Error(`„${u.hostname}“ ist nicht die SharePoint-Adresse eures Microsoft 365.${hint}`);
+      }
+      if (e.status === 404) throw new Error(`SharePoint-Website nicht gefunden: ${cfg.siteUrl} – bitte Adresse prüfen bzw. Website anlegen.`);
+      throw e;
+    }
     const lists = await getAll(`/sites/${site.id}/lists?$select=id,displayName`);
     const out = { site: cfg.siteUrl, siteId: site.id };
     for (const k of KINDS) {
