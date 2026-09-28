@@ -17,12 +17,12 @@
 <body>
 <div id="app">
   <header class="topbar">
-    <button class="icon-btn only-mobile" data-action="toggle-nav" aria-label="Menü"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 6h16M4 12h16M4 18h16"/></svg></button>
+    <button class="icon-btn" data-action="toggle-nav" aria-label="Menü ein-/ausklappen" title="Menü ein-/ausklappen"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 6h16M4 12h16M4 18h16"/></svg></button>
     <div class="brand"><span class="logo"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><circle cx="12" cy="12" r="8"/><path d="M12 8v4l2.5 2"/></svg></span><span>Zeiterfassung</span></div>
     <div class="topbar-right">
       <a href="#/tracker" id="top-timer" class="top-timer" hidden><span>0:00:00</span></a>
       <button id="sync-status" class="sync-status" data-action="cloud-status" hidden></button>
-      <span id="user-name" class="user-name"></span>
+      <button id="user-btn" class="user-btn" data-action="user-menu" aria-label="Benutzermenü"><span class="avatar" id="user-avatar"></span><span id="user-name" class="user-name"></span></button>
     </div>
   </header>
   <nav class="sidebar" id="sidebar"></nav>

@@ -380,6 +380,7 @@ const Cloud = (() => {
   return {
     enabled, init, sync, changed, login, logout, teamEntries, settingsHTML,
     signedIn: () => enabled && !!account,
+    account: () => account,
     refreshTeam: () => { team.key = ''; },
     statusClick: () => (state === 'login' ? login() : sync())
   };

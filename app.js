@@ -141,7 +141,7 @@ const NAV = [
 function renderNav() {
   $('#sidebar').innerHTML = NAV.map(([r, i, t], n) =>
     (n === 2 || n === 5 ? '<div class="nav-sep"></div>' : '') +
-    `<a class="nav-link" href="#/${r}" data-route="${r}">${ic(i)}<span>${t}</span></a>`).join('');
+    `<a class="nav-link" href="#/${r}" data-route="${r}" title="${t}">${ic(i)}<span>${t}</span></a>`).join('');
   $('#bottombar').innerHTML = NAV.slice(0, 3).map(([r, i, t]) =>
     `<a href="#/${r}" data-route="${r}">${ic(i)}<span>${r === 'tracker' ? 'Timer' : t}</span></a>`).join('') +
     `<button data-action="toggle-nav">${ic('menu')}<span>Mehr</span></button>`;
@@ -156,7 +156,9 @@ function render() {
   $$('[data-route]').forEach(a => a.classList.toggle('active', a.dataset.route === UI.route));
   $('#view').innerHTML = VIEWS[UI.route]();
   AFTER[UI.route]?.();
-  $('#user-name').textContent = S.settings.userName || '';
+  const name = S.settings.userName || '';
+  $('#user-name').textContent = name || 'Profil';
+  $('#user-avatar').textContent = name ? name.split(/\s+/).filter(Boolean).slice(0, 2).map(w => w[0].toUpperCase()).join('') : '?';
   tick();
 }
 
@@ -474,6 +476,29 @@ function openEntryMenu(anchor, id) {
       if (m === 'del') deleteEntry(id);
     });
   }, 'menu');
+}
+
+function openUserMenu(anchor) {
+  const acc = window.Cloud?.account?.();
+  const name = S.settings.userName || acc?.name || 'Kein Name eingetragen';
+  const cloud = cloudOn();
+  openPopover(anchor, `
+    <div class="um-head"><span class="avatar big">${esc($('#user-avatar').textContent)}</span>
+      <div class="um-who"><b>${esc(name)}</b><span class="muted">${esc(acc?.username || (cloud ? 'Nicht angemeldet' : 'Nur auf diesem Gerät'))}</span></div></div>
+    <button class="pp-item" data-m="profile">${ic('cog')} Profil & Einstellungen</button>
+    ${cloud && acc ? `<button class="pp-item" data-m="sync">${ic('upload')} Jetzt synchronisieren</button>
+      <button class="pp-item danger" data-m="logout">${ic('x')} Abmelden</button>` : ''}
+    ${cloud && !acc ? `<button class="pp-item" data-m="login">${ic('users')} Anmelden</button>` : ''}`, pop => {
+    pop.addEventListener('click', ev => {
+      const m = ev.target.closest('[data-m]')?.dataset.m;
+      if (!m) return;
+      closePopover();
+      if (m === 'profile') location.hash = '#/settings';
+      if (m === 'sync') Cloud.sync();
+      if (m === 'logout') Cloud.logout();
+      if (m === 'login') Cloud.login();
+    });
+  }, 'menu user-menu');
 }
 
 function openEntryModal(id) {
@@ -892,7 +917,7 @@ function viewSettings() {
   const standalone = matchMedia('(display-mode: standalone)').matches || navigator.standalone;
   return `<div class="page"><div class="page-head"><h1>Einstellungen</h1></div>
     <div class="settings-grid">
-      <div class="card"><div class="card-head">Allgemein</div><div class="card-body">
+      <div class="card"><div class="card-head">Profil & Allgemein</div><div class="card-body">
         <div class="row2">
           <label class="field"><span>Ihr Name (erscheint im Bericht)</span><input name="userName" data-change="setting" value="${esc(s.userName)}" autocomplete="name"></label>
           <label class="field"><span>Standard-Stundensatz</span><input name="defaultRate" data-change="setting" type="number" min="0" step="0.01" inputmode="decimal" value="${s.defaultRate}"></label>
@@ -978,7 +1003,12 @@ function loadDemo() {
    Ereignisse
    ===================================================================== */
 const ACTIONS = {
-  'toggle-nav': () => document.body.classList.toggle('nav-open'),
+  'toggle-nav': () => {
+    if (innerWidth <= 760) return document.body.classList.toggle('nav-open');
+    const c = document.body.classList.toggle('nav-collapsed'); // am PC: Leiste ein-/ausklappen
+    try { localStorage.setItem('zeiterfassung.navCollapsed', c ? '1' : ''); } catch { }
+  },
+  'user-menu': el => openUserMenu(el),
   'start': () => startTimer(UI.draft),
   'stop': () => stopTimer(),
   'discard': () => { if (confirm('Laufenden Timer verwerfen?')) { S.running = null; save(); render(); } },
@@ -1112,6 +1142,7 @@ document.addEventListener('visibilitychange', () => { if (!document.hidden) tick
 
 /* ---------- Start ---------- */
 UI.manual.date = todayStr();
+try { if (localStorage.getItem('zeiterfassung.navCollapsed')) document.body.classList.add('nav-collapsed'); } catch { }
 renderNav();
 render();
 if ('serviceWorker' in navigator && location.protocol !== 'file:') navigator.serviceWorker.register('sw.js').catch(() => {});

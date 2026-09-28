@@ -43,7 +43,22 @@ a { color: var(--accent); }
 .brand { display: flex; align-items: center; gap: 10px; font-weight: 600; font-size: 17px; }
 .logo { width: 30px; height: 30px; border-radius: 8px; background: var(--accent); color: #fff; display: grid; place-items: center; }
 .topbar-right { margin-left: auto; display: flex; align-items: center; gap: 14px; }
+.user-btn { display: inline-flex; align-items: center; gap: 8px; height: 38px; padding: 0 10px 0 4px; border-radius: 19px; }
+.user-btn:hover { background: var(--hover); }
 .user-name { color: var(--muted-2); }
+.avatar { width: 30px; height: 30px; border-radius: 50%; background: var(--accent); color: #fff; display: grid; place-items: center; font-size: 12px; font-weight: 700; flex: none; }
+.avatar.big { width: 40px; height: 40px; font-size: 15px; }
+.popover.user-menu { width: 280px; }
+.um-head { display: flex; align-items: center; gap: 12px; padding: 10px 14px 12px; border-bottom: 1px solid var(--border); margin-bottom: 4px; }
+.um-who { display: flex; flex-direction: column; min-width: 0; }
+.um-who span { font-size: 12.5px; overflow: hidden; text-overflow: ellipsis; }
+
+/* am PC eingeklappte Seitenleiste (nur Symbole) */
+@media (min-width: 761px) {
+  body.nav-collapsed #app { grid-template-columns: 64px 1fr; }
+  body.nav-collapsed .nav-link { justify-content: center; padding: 12px 0; }
+  body.nav-collapsed .nav-link span { display: none; }
+}
 .top-timer { display: flex; align-items: center; gap: 7px; color: var(--danger); text-decoration: none; font-weight: 600; font-variant-numeric: tabular-nums; }
 .top-timer[hidden] { display: none; }
 .top-timer::before { content: ""; width: 8px; height: 8px; border-radius: 50%; background: var(--danger); animation: pulse 1.6s infinite; }
