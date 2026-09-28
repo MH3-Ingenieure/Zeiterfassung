@@ -99,7 +99,7 @@ const client = id => S.clients.find(c => c.id === id);
 const tag = id => S.tags.find(t => t.id === id);
 function rateOf(e) {
   const p = proj(e.projectId);
-  return p && p.rate != null ? Number(p.rate) : Number(S.settings.defaultRate) || 0;
+  return p && p.rate != null ? Number(p.rate) : 0; // Stundensatz ausschließlich am Projekt
 }
 function amountOf(e) { return e.billable ? dur(e) / HOUR * rateOf(e) : 0; }
 
@@ -410,8 +410,10 @@ function openProjectPicker(anchor, target) {
       const b = ev.target.closest('button');
       if (!b) return;
       if (b.hasAttribute('data-create')) {
-        const p = { id: uid(), name: inp.value.trim(), clientId: null, color: COLORS[S.projects.length % COLORS.length], rate: null, billable: true, archived: false };
-        S.projects.push(p); save(); choose(p.id);
+        // neues Projekt immer über den Projektdialog anlegen, damit der Stundensatz erfasst wird
+        const name = inp.value.trim();
+        closePopover();
+        openProjectModal(null, { name, onSaved: id => choose(id), onCancel: () => { if (target === 'modal') renderEntryModal(); } });
       } else choose(b.dataset.pick || null);
     });
     inp.addEventListener('input', draw);
@@ -838,10 +840,10 @@ function projectTableHTML() {
     <tbody>${list.map(p => {
       const es = S.entries.filter(e => e.projectId === p.id);
       return `<tr class="${p.archived ? 'archived' : ''}">
-        <td><button class="name-cell" data-action="edit-project" data-id="${p.id}"><span class="dot" style="background:${p.color}"></span>${esc(p.name)}${p.archived ? ' <span class="chip">archiviert</span>' : ''}</button></td>
+        <td><button class="name-cell" data-action="edit-project" data-id="${p.id}"><span class="dot" style="background:${p.color}"></span>${esc(p.name)}${p.archived ? ' <span class="chip">archiviert</span>' : ''}${p.billable && p.rate == null ? ' <span class="chip warn">Stundensatz fehlt</span>' : ''}</button></td>
         <td class="hide-mobile">${esc(client(p.clientId)?.name || '–')}</td>
         <td class="num">${fmtDur(sum(es))}</td>
-        <td class="num hide-mobile">${p.rate != null ? fmtMoney(Number(p.rate)) : '<span class="muted">Standard</span>'}</td>
+        <td class="num hide-mobile">${p.rate != null ? fmtMoney(Number(p.rate)) : p.billable ? '<span class="warn-text">fehlt</span>' : '<span class="muted">–</span>'}</td>
         <td class="num hide-mobile">${fmtMoney(es.reduce((a, e) => a + amountOf(e), 0))}</td>
         <td class="act">
           <button class="icon-btn" data-action="edit-project" data-id="${p.id}" title="Bearbeiten">${ic('edit')}</button>
@@ -854,32 +856,44 @@ function afterProjects() {
   $('#proj-q').addEventListener('input', ev => { UI.projQ = ev.target.value; $('#proj-list').innerHTML = projectTableHTML(); });
 }
 
-function openProjectModal(id) {
+// opts: { name, onSaved(id), onCancel() } – für das Anlegen direkt aus der Projektauswahl
+function openProjectModal(id, opts = {}) {
   const p = id ? proj(id) : null;
-  const d = p ? { ...p } : { name: '', clientId: null, color: COLORS[S.projects.length % COLORS.length], rate: null, billable: true };
-  openModal(`<h2>${p ? 'Projekt bearbeiten' : 'Neues Projekt'}</h2><form id="pf">
-    <label class="field"><span>Projektname</span><input name="pname" value="${esc(d.name)}" required autocomplete="off"></label>
+  const d = p ? { ...p } : { name: opts.name || '', clientId: null, color: COLORS[S.projects.length % COLORS.length], rate: null, billable: true };
+  openModal(`<h2>${p ? 'Projekt bearbeiten' : 'Neues Projekt'}</h2><form id="pf" novalidate>
+    <label class="field"><span>Projektname</span><input name="pname" value="${esc(d.name)}" autocomplete="off"></label>
     <label class="field"><span>Kunde</span><select name="clientId"><option value="">Ohne Kunde</option>
       ${[...S.clients].sort(byName).map(c => `<option value="${c.id}" ${c.id === d.clientId ? 'selected' : ''}>${esc(c.name)}</option>`).join('')}</select></label>
     <div class="field"><span>Farbe</span><div class="swatches">${COLORS.map(c => `<label class="sw" style="--c:${c}"><input type="radio" name="color" value="${c}" ${c === d.color ? 'checked' : ''}><i></i></label>`).join('')}</div></div>
-    <label class="field"><span>Stundensatz in ${esc(S.settings.currency)} (leer = Standard ${fmtMoney(Number(S.settings.defaultRate) || 0)})</span>
-      <input name="rate" type="number" min="0" step="0.01" inputmode="decimal" value="${d.rate ?? ''}"></label>
     <label class="check"><input type="checkbox" name="billable" ${d.billable ? 'checked' : ''}> Einträge standardmäßig abrechenbar</label>
+    <label class="field"><span>Stundensatz in ${esc(S.settings.currency)} <span class="req">*</span> (Pflicht bei abrechenbaren Projekten)</span>
+      <input name="rate" type="number" min="0" step="0.01" inputmode="decimal" placeholder="z. B. 95" value="${d.rate ?? ''}"></label>
+    <div class="form-error" id="pf-err" hidden></div>
     <div class="modal-actions"><span class="grow"></span>
-      <button type="button" class="btn ghost" data-action="close-modal">Abbrechen</button>
+      <button type="button" class="btn ghost" id="pf-cancel">Abbrechen</button>
       <button class="btn primary">Speichern</button></div></form>`, m => {
-    const f = $('#pf', m), el = f.elements;
-    if (!p) el.pname.focus();
+    const f = $('#pf', m), el = f.elements, err = $('#pf-err', m);
+    if (!p) (opts.name ? el.rate : el.pname).focus();
+    // Entwurf eines darunterliegenden Zeiteintrag-Dialogs erhalten
+    const close = () => { const draft = UI.modalDraft; closeModal(); UI.modalDraft = draft; };
+    const fail = (msg, input) => { err.textContent = msg; err.hidden = false; input.focus(); };
+    $('#pf-cancel', m).addEventListener('click', () => { close(); opts.onCancel?.(); });
     f.addEventListener('submit', ev => {
       ev.preventDefault();
+      const rateStr = String(el.rate.value).trim().replace(',', '.');
       const vals = {
         name: el.pname.value.trim(), clientId: el.clientId.value || null,
         color: f.querySelector('[name=color]:checked')?.value || d.color,
-        rate: el.rate.value === '' ? null : Number(el.rate.value), billable: el.billable.checked
+        rate: rateStr === '' ? null : Number(rateStr), billable: el.billable.checked
       };
-      if (!vals.name) return;
-      if (p) Object.assign(p, vals); else S.projects.push({ id: uid(), archived: false, ...vals });
-      save(); closeModal(); render(); toast(p ? 'Projekt gespeichert' : 'Projekt angelegt');
+      if (!vals.name) return fail('Bitte einen Projektnamen eingeben.', el.pname);
+      if (vals.rate != null && (isNaN(vals.rate) || vals.rate < 0)) return fail('Bitte einen gültigen Stundensatz eingeben.', el.rate);
+      if (vals.billable && !(vals.rate > 0)) return fail('Für abrechenbare Projekte ist ein Stundensatz Pflicht. Bitte eintragen oder „abrechenbar“ abwählen.', el.rate);
+      let pid = p?.id;
+      if (p) Object.assign(p, vals); else { pid = uid(); S.projects.push({ id: pid, archived: false, ...vals }); }
+      save(); close();
+      if (opts.onSaved) opts.onSaved(pid); else render();
+      toast(p ? 'Projekt gespeichert' : 'Projekt angelegt');
     });
   });
 }
@@ -920,7 +934,6 @@ function viewSettings() {
       <div class="card"><div class="card-head">Profil & Allgemein</div><div class="card-body">
         <div class="row2">
           <label class="field"><span>Ihr Name (erscheint im Bericht)</span><input name="userName" data-change="setting" value="${esc(s.userName)}" autocomplete="name"></label>
-          <label class="field"><span>Standard-Stundensatz</span><input name="defaultRate" data-change="setting" type="number" min="0" step="0.01" inputmode="decimal" value="${s.defaultRate}"></label>
           <label class="field"><span>Währung</span><select name="currency" data-change="setting">${['EUR', 'CHF', 'USD', 'GBP'].map(c => opt(c, c, s.currency)).join('')}</select></label>
           <label class="field"><span>Wochenbeginn</span><select name="weekStart" data-change="setting">${opt(1, 'Montag', s.weekStart)}${opt(0, 'Sonntag', s.weekStart)}</select></label>
           <label class="field"><span>Dauerformat</span><select name="durationFormat" data-change="setting">${opt('hms', 'h:mm:ss (1:30:00)', s.durationFormat)}${opt('decimal', 'Dezimal (1,50 h)', s.durationFormat)}</select></label>
@@ -995,7 +1008,6 @@ function loadDemo() {
       t += len + (i === 1 ? 45 : 10) * 60000;
     }
   }
-  if (!S.settings.defaultRate) S.settings.defaultRate = 85;
   save(); render(); toast('Demodaten geladen');
 }
 
