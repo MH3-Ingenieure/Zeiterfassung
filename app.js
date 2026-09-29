@@ -14,7 +14,7 @@ const HOUR = 3600000, DAY = 86400000;
 function defaultState() {
   return {
     settings: { userName: '', currency: 'EUR', defaultRate: 0, weekStart: 1, durationFormat: 'hms', trackMode: 'timer' },
-    clients: [], projects: [], tags: [], entries: [], running: null
+    clients: [], projects: [], tags: [], entries: [], running: null, roles: []
   };
 }
 function load() {
@@ -125,7 +125,9 @@ const P = {
   chevR: '<path d="M9 6l6 6-6 6"/>',
   printer: '<path d="M7 9V3h10v6M7 17H4V9h16v8h-3M7 14h10v7H7z"/>',
   edit: '<path d="M4 20h4L20 8l-4-4L4 16z"/>',
-  archive: '<path d="M3 4h18v4H3zM5 8v12h14V8M10 12h4"/>'
+  archive: '<path d="M3 4h18v4H3zM5 8v12h14V8M10 12h4"/>',
+  shield: '<path d="M12 3l8 3v6c0 4.5-3.4 8.3-8 9-4.6-.7-8-4.5-8-9V6z"/><path d="M9 12l2 2 4-4"/>',
+  help: '<circle cx="12" cy="12" r="9"/><path d="M9.5 9.5a2.5 2.5 0 1 1 3.5 2.3c-.6.3-1 .9-1 1.6v.6M12 17h.01"/>'
 };
 const ic = n => `<svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${P[n]}</svg>`;
 
@@ -136,23 +138,37 @@ const NAV = [
   ['projects', 'folder', 'Projekte'],
   ['clients', 'users', 'Kunden'],
   ['tags', 'tag', 'Tags'],
-  ['settings', 'cog', 'Einstellungen']
+  ['settings', 'cog', 'Einstellungen'],
+  ['help', 'help', 'Hilfe']
 ];
+/* ---------- Rollen (ohne Microsoft 365: alles erlaubt) ---------- */
+const role = () => window.Cloud?.myRole ? Cloud.myRole() : { admin: true, pl: true, ma: true, bh: true, local: true };
+const meId = () => S.sync?.userId || null;
+const canSeeRates = () => { const r = role(); return r.admin || r.pl || r.bh; };
+const canCreateProject = () => { const r = role(); return r.admin || r.pl; };
+const canEditProject = p => { const r = role(); return r.admin || (r.pl && (!cloudOn() || p.leadId === meId())); };
+const canEditClients = () => { const r = role(); return r.admin || r.pl; };
+const canEditTags = () => role().admin;
+const canTeam = () => { const r = role(); return !!window.Cloud?.signedIn() && (r.admin || r.pl || r.bh); };
+const canManageUsers = () => cloudOn() && role().admin;
+
 function renderNav() {
-  $('#sidebar').innerHTML = NAV.map(([r, i, t], n) =>
-    (n === 2 || n === 5 ? '<div class="nav-sep"></div>' : '') +
+  const nav = canManageUsers() ? [...NAV.slice(0, 5), ['users', 'shield', 'Benutzer & Rollen'], ...NAV.slice(5)] : NAV;
+  $('#sidebar').innerHTML = nav.map(([r, i, t], n) =>
+    (n === 2 || r === 'settings' ? '<div class="nav-sep"></div>' : '') +
     `<a class="nav-link" href="#/${r}" data-route="${r}" title="${t}">${ic(i)}<span>${t}</span></a>`).join('');
   $('#bottombar').innerHTML = NAV.slice(0, 3).map(([r, i, t]) =>
     `<a href="#/${r}" data-route="${r}">${ic(i)}<span>${r === 'tracker' ? 'Timer' : t}</span></a>`).join('') +
     `<button data-action="toggle-nav">${ic('menu')}<span>Mehr</span></button>`;
 }
 
-const VIEWS = { tracker: viewTracker, reports: viewReports, projects: viewProjects, clients: () => viewList('clients'), tags: () => viewList('tags'), settings: viewSettings };
-const AFTER = { tracker: afterTracker, projects: afterProjects };
+const VIEWS = { tracker: viewTracker, reports: viewReports, projects: viewProjects, clients: () => viewList('clients'), tags: () => viewList('tags'), users: viewUsers, settings: viewSettings, help: () => viewHelp() };
+const AFTER = { tracker: afterTracker, projects: afterProjects, help: () => afterHelp() };
 
 function render() {
   const r = location.hash.replace(/^#\/?/, '') || 'tracker';
-  UI.route = VIEWS[r] ? r : 'tracker';
+  UI.route = VIEWS[r] && (r !== 'users' || canManageUsers()) ? r : 'tracker';
+  renderNav();
   $$('[data-route]').forEach(a => a.classList.toggle('active', a.dataset.route === UI.route));
   $('#view').innerHTML = VIEWS[UI.route]();
   AFTER[UI.route]?.();
@@ -182,7 +198,7 @@ function timerBarHTML() {
   const suggestions = [...new Set(S.entries.slice().sort((a, b) => b.start - a.start).map(e => e.description).filter(Boolean))].slice(0, 60);
   const m = UI.manual;
   return `<div class="timerbar ${r ? 'running' : ''}">
-    <input class="tb-desc" id="tb-desc" list="desc-list" placeholder="Woran arbeitest du?" value="${esc(d.description)}" autocomplete="off" enterkeyhint="go">
+    <input class="tb-desc" id="tb-desc" list="desc-list" placeholder="Woran arbeitest du? (Kommentar)" maxlength="4000" value="${esc(d.description)}" autocomplete="off" enterkeyhint="go">
     <datalist id="desc-list">${suggestions.map(s => `<option value="${esc(s)}">`).join('')}</datalist>
     <div class="tb-controls">
       <button class="proj-btn" data-action="pick-project" data-target="timer">${projLabel(d.projectId)}</button>
@@ -395,10 +411,12 @@ function openProjectPicker(anchor, target) {
         html += `<div class="pp-group">${esc(cname)}</div>` + ps.map(p =>
           `<button class="pp-item ${p.id === cur ? 'sel' : ''}" data-pick="${p.id}"><span class="dot" style="background:${p.color}"></span>${esc(p.name)}</button>`).join('');
       }
-      if (q && !S.projects.some(p => p.name.toLowerCase() === q)) {
+      if (q && canCreateProject() && !S.projects.some(p => p.name.toLowerCase() === q)) {
         html += `<button class="pp-item pp-create" data-create>${ic('plus')} Projekt „${esc(inp.value.trim())}“ erstellen</button>`;
       } else if (!S.projects.length) {
-        html += `<div class="pp-empty">Noch keine Projekte – Namen eintippen zum Anlegen</div>`;
+        html += `<div class="pp-empty">${canCreateProject() ? 'Noch keine Projekte – Namen eintippen zum Anlegen' : 'Noch keine Projekte – Projekte legen Projektleiter oder Administratoren an'}</div>`;
+      } else if (q && !html.includes('data-pick="')) {
+        html += '<div class="pp-empty">Kein passendes Projekt gefunden</div>';
       }
       listEl.innerHTML = html;
     };
@@ -427,7 +445,8 @@ function openProjectPicker(anchor, target) {
 }
 
 function openTagPicker(anchor, target) {
-  openPopover(anchor, `<input class="pp-search" placeholder="Tag suchen oder erstellen…" autocomplete="off"><div class="pp-list"></div>`, pop => {
+  const mayCreate = canEditTags(); // Tags vergibt der Administrator
+  openPopover(anchor, `<input class="pp-search" placeholder="${mayCreate ? 'Tag suchen oder erstellen…' : 'Tag suchen…'}" autocomplete="off"><div class="pp-list"></div>`, pop => {
     const inp = $('.pp-search', pop), listEl = $('.pp-list', pop);
     const draw = () => {
       const o = targetObj(target);
@@ -435,8 +454,9 @@ function openTagPicker(anchor, target) {
       const q = inp.value.trim().toLowerCase();
       const list = S.tags.filter(t => t.name.toLowerCase().includes(q)).sort(byName);
       listEl.innerHTML = list.map(t => `<label class="pp-check"><input type="checkbox" data-tag="${t.id}" ${o.tagIds.includes(t.id) ? 'checked' : ''}>${esc(t.name)}</label>`).join('')
-        + (q && !S.tags.some(t => t.name.toLowerCase() === q) ? `<button class="pp-item pp-create" data-create>${ic('plus')} Tag „${esc(inp.value.trim())}“ erstellen</button>` : '')
-        + (!S.tags.length && !q ? '<div class="pp-empty">Noch keine Tags – Namen eintippen zum Anlegen</div>' : '');
+        + (mayCreate && q && !S.tags.some(t => t.name.toLowerCase() === q) ? `<button class="pp-item pp-create" data-create>${ic('plus')} Tag „${esc(inp.value.trim())}“ erstellen</button>` : '')
+        + (!S.tags.length && !q ? `<div class="pp-empty">${mayCreate ? 'Noch keine Tags – Namen eintippen zum Anlegen' : 'Noch keine Tags – Tags legt der Administrator an'}</div>` : '')
+        + (!mayCreate && q && !list.length ? '<div class="pp-empty">Kein passender Tag. Neue Tags legt der Administrator an.</div>' : '');
     };
     listEl.addEventListener('change', ev => {
       const id = ev.target.dataset.tag;
@@ -445,7 +465,7 @@ function openTagPicker(anchor, target) {
     });
     const create = () => {
       const name = inp.value.trim();
-      if (!name) return;
+      if (!name || !mayCreate || S.tags.some(t => t.name.toLowerCase() === name.toLowerCase())) return;
       const t = { id: uid(), name };
       S.tags.push(t); save();
       applyTarget(target, o => { o.tagIds = [...o.tagIds, t.id]; });
@@ -488,6 +508,7 @@ function openUserMenu(anchor) {
     <div class="um-head"><span class="avatar big">${esc($('#user-avatar').textContent)}</span>
       <div class="um-who"><b>${esc(name)}</b><span class="muted">${esc(acc?.username || (cloud ? 'Nicht angemeldet' : 'Nur auf diesem Gerät'))}</span></div></div>
     <button class="pp-item" data-m="profile">${ic('cog')} Profil & Einstellungen</button>
+    <button class="pp-item" data-m="help">${ic('help')} Hilfe</button>
     ${cloud && acc ? `<button class="pp-item" data-m="sync">${ic('upload')} Jetzt synchronisieren</button>
       <button class="pp-item danger" data-m="logout">${ic('x')} Abmelden</button>` : ''}
     ${cloud && !acc ? `<button class="pp-item" data-m="login">${ic('users')} Anmelden</button>` : ''}`, pop => {
@@ -496,6 +517,7 @@ function openUserMenu(anchor) {
       if (!m) return;
       closePopover();
       if (m === 'profile') location.hash = '#/settings';
+      if (m === 'help') location.hash = '#/help';
       if (m === 'sync') Cloud.sync();
       if (m === 'logout') Cloud.logout();
       if (m === 'login') Cloud.login();
@@ -512,7 +534,7 @@ function openEntryModal(id) {
 function renderEntryModal() {
   const d = UI.modalDraft;
   openModal(`<h2>Zeiteintrag bearbeiten</h2>
-    <label class="field"><span>Beschreibung</span><input id="md-desc" value="${esc(d.description)}" autocomplete="off"></label>
+    <label class="field"><span>Kommentar – was genau wurde gemacht?</span><textarea id="md-desc" rows="4" placeholder="z. B. Begehung Heizraum mit Hausmeister, Mängel an Pumpe P2 aufgenommen">${esc(d.description)}</textarea></label>
     <div class="field"><span>Projekt</span><button class="select-btn" data-action="pick-project" data-target="modal">${projLabel(d.projectId, 'Projekt wählen')}</button></div>
     <div class="field"><span>Tags</span><button class="select-btn" data-action="pick-tags" data-target="modal">${tagsLabel(d.tagIds)}</button></div>
     <label class="check"><input type="checkbox" id="md-bill" ${d.billable ? 'checked' : ''}> Abrechenbar</label>
@@ -536,7 +558,7 @@ function renderEntryModal() {
     };
     m.addEventListener('input', sync);
     m.addEventListener('change', sync);
-    $('#md-desc', m).addEventListener('keydown', ev => { if (ev.key === 'Enter') saveEntryModal(); });
+    $('#md-desc', m).addEventListener('keydown', ev => { if (ev.key === 'Enter' && (ev.ctrlKey || ev.metaKey)) saveEntryModal(); }); // Strg+Enter speichert
     sync();
   });
 }
@@ -705,8 +727,9 @@ function donutSVG(groups) {
 
 function viewReports() {
   const R = UI.report, { from, to, label } = reportRange();
-  const teamOk = !!window.Cloud?.signedIn();
+  const teamOk = canTeam(), money = canSeeRates();
   if (!teamOk) R.scope = 'me';
+  const teamLabel = role().admin || role().bh ? 'Alle Mitarbeiter' : 'Team meiner Projekte';
   const isTeam = R.scope === 'team';
   if (!isTeam && R.groupBy === 'user') R.groupBy = 'project';
   const src = reportSource(from, to), list = reportEntries(from, to, src);
@@ -726,7 +749,7 @@ function viewReports() {
     <div class="print-only"><b>Stundenbericht ${esc(label)}</b>${S.settings.userName ? ' – ' + esc(S.settings.userName) : ''}</div>
     <div class="card rep-bar no-print">
       <div class="rep-row">
-        ${teamOk ? `<select name="scope" data-change="rep">${opt('me', 'Meine Zeiten', R.scope)}${opt('team', 'Alle Mitarbeiter', R.scope)}</select>` : ''}
+        ${teamOk ? `<select name="scope" data-change="rep">${opt('me', 'Meine Zeiten', R.scope)}${opt('team', teamLabel, R.scope)}</select>` : ''}
         ${isTeam ? `<select name="userId" data-change="rep">${opt('', 'Alle Personen', R.userId)}${users.map(([id, n]) => opt(id, n, R.userId)).join('')}</select>
           <button class="icon-btn" data-action="team-refresh" title="Teamdaten neu laden">⟳</button>` : ''}
         <select name="range" data-change="rep">${[['day', 'Tag'], ['week', 'Woche'], ['month', 'Monat'], ['year', 'Jahr'], ['custom', 'Zeitraum']].map(([v, t]) => opt(v, t, R.range)).join('')}</select>
@@ -743,10 +766,10 @@ function viewReports() {
       </div>
     </div>
     ${note}
-    <div class="stats">
+    <div class="stats ${money ? '' : 'two'}">
       <div class="card stat"><div class="k">Gesamt</div><div class="v">${fmtDur(total)}</div></div>
       <div class="card stat"><div class="k">Abrechenbar</div><div class="v">${fmtDur(billMs)}</div></div>
-      <div class="card stat"><div class="k">Betrag</div><div class="v">${fmtMoney(amount)}</div></div>
+      ${money ? `<div class="card stat"><div class="k">Betrag</div><div class="v">${fmtMoney(amount)}</div></div>` : ''}
     </div>
     <div class="card chart"><div class="card-body">${barChartSVG(list, from, to)}</div></div>
     <div class="card section-gap">
@@ -758,10 +781,10 @@ function viewReports() {
       <div class="card-body breakdown">
         ${donutSVG(groups)}
         <div class="tbl-wrap"><table class="tbl">
-          <thead><tr><th>Name</th><th class="num">Dauer</th><th class="num hide-mobile">Betrag</th><th class="hide-mobile" style="width:28%">Anteil</th></tr></thead>
+          <thead><tr><th>Name</th><th class="num">Dauer</th>${money ? '<th class="num hide-mobile">Betrag</th>' : ''}<th class="hide-mobile" style="width:28%">Anteil</th></tr></thead>
           <tbody>${groups.map(g => `<tr>
             <td><span class="name-cell"><span class="dot" style="background:${g.color}"></span>${esc(g.name)}</span></td>
-            <td class="num">${fmtDur(g.ms)}</td><td class="num hide-mobile">${fmtMoney(g.amount)}</td>
+            <td class="num">${fmtDur(g.ms)}</td>${money ? `<td class="num hide-mobile">${fmtMoney(g.amount)}</td>` : ''}
             <td class="hide-mobile"><div class="pct" title="${Math.round(g.ms / gsum * 100)} %"><i style="width:${(g.ms / gsum * 100).toFixed(1)}%;background:${g.color}"></i></div></td></tr>`).join('')
             || '<tr><td colspan="4" class="muted">Keine Einträge im gewählten Zeitraum</td></tr>'}</tbody>
         </table></div>
@@ -770,7 +793,7 @@ function viewReports() {
     <div class="card">
       <div class="card-head">Einzelnachweis <span class="muted" style="font-weight:400">(${list.length} Einträge)</span></div>
       <div class="tbl-wrap"><table class="tbl">
-        <thead><tr><th>Datum</th>${isTeam ? '<th>Mitarbeiter</th>' : ''}<th>Beschreibung</th><th>Projekt</th><th class="hide-mobile">Zeit</th><th class="num">Dauer</th><th class="num hide-mobile">Betrag</th></tr></thead>
+        <thead><tr><th>Datum</th>${isTeam ? '<th>Mitarbeiter</th>' : ''}<th>Beschreibung</th><th>Projekt</th><th class="hide-mobile">Zeit</th><th class="num">Dauer</th>${money ? '<th class="num hide-mobile">Betrag</th>' : ''}</tr></thead>
         <tbody>${rows.slice(0, 1000).map(e => `<tr>
           <td class="num" style="text-align:left">${fmtD(e.start)}</td>
           ${isTeam ? `<td>${esc(e.userName)}</td>` : ''}
@@ -779,7 +802,7 @@ function viewReports() {
           <td>${proj(e.projectId) ? projLabel(e.projectId) : '<span class="muted">–</span>'}</td>
           <td class="num hide-mobile" style="text-align:left">${fmtTime(e.start)} – ${fmtTime(e.end)}</td>
           <td class="num">${fmtDur(dur(e))}</td>
-          <td class="num hide-mobile">${e.billable ? fmtMoney(amountOf(e)) : '<span class="muted">–</span>'}</td></tr>`).join('')
+          ${money ? `<td class="num hide-mobile">${e.billable ? fmtMoney(amountOf(e)) : '<span class="muted">–</span>'}</td>` : ''}</tr>`).join('')
           || '<tr><td colspan="6" class="muted">Keine Einträge</td></tr>'}</tbody>
       </table></div>
     </div>
@@ -789,12 +812,13 @@ function viewReports() {
 function exportCSV() {
   const { from, to, label } = reportRange(), list = reportEntries(from, to);
   const num = v => v.toFixed(2).replace('.', ',');
-  const rows = [['Datum', 'Beginn', 'Ende', 'Dauer (h:mm:ss)', 'Dauer (Stunden)', 'Beschreibung', 'Projekt', 'Kunde', 'Tags', 'Abrechenbar', 'Stundensatz', 'Betrag', 'Mitarbeiter']];
+  const money = canSeeRates();
+  const rows = [['Datum', 'Beginn', 'Ende', 'Dauer (h:mm:ss)', 'Dauer (Stunden)', 'Beschreibung', 'Projekt', 'Kunde', 'Tags', 'Abrechenbar', ...(money ? ['Stundensatz', 'Betrag'] : []), 'Mitarbeiter']];
   for (const e of list) {
     const p = proj(e.projectId), c = client(p?.clientId);
     rows.push([fmtD(e.start), fmtTime(e.start), fmtTime(e.end), fmtClock(dur(e)), num(dur(e) / HOUR), e.description,
       p?.name || '', c?.name || '', e.tagIds.map(tag).filter(Boolean).map(t => t.name).join(', '),
-      e.billable ? 'Ja' : 'Nein', num(rateOf(e)), num(amountOf(e)), e.userName || S.settings.userName]);
+      e.billable ? 'Ja' : 'Nein', ...(money ? [num(rateOf(e)), num(amountOf(e))] : []), e.userName || S.settings.userName]);
   }
   const csv = rows.map(r => r.map(v => { v = String(v ?? ''); return /[;"\n\r]/.test(v) ? '"' + v.replace(/"/g, '""') + '"' : v; }).join(';')).join('\r\n');
   downloadFile('﻿' + csv, `Stundenbericht_${label.replace(/[^\wäöüÄÖÜß.-]+/g, '_')}.csv`, 'text/csv;charset=utf-8');
@@ -820,7 +844,7 @@ async function downloadFile(content, name, type) {
    ===================================================================== */
 function viewProjects() {
   return `<div class="page">
-    <div class="page-head"><h1>Projekte</h1><button class="btn primary" data-action="new-project">${ic('plus')} NEUES PROJEKT</button></div>
+    <div class="page-head"><h1>Projekte</h1>${canCreateProject() ? `<button class="btn primary" data-action="new-project">${ic('plus')} NEUES PROJEKT</button>` : ''}</div>
     <div class="card">
       <div class="toolbar">
         <input type="search" id="proj-q" placeholder="Projekt suchen…" value="${esc(UI.projQ)}">
@@ -835,20 +859,21 @@ function projectTableHTML() {
   const list = S.projects.filter(p => (UI.showArchived || !p.archived) &&
     (!q || p.name.toLowerCase().includes(q) || (client(p.clientId)?.name || '').toLowerCase().includes(q))).sort(byName);
   if (!list.length) return `<div class="empty"><p>${S.projects.length ? 'Keine passenden Projekte.' : 'Noch keine Projekte angelegt.'}</p></div>`;
+  const money = canSeeRates(), cloud = cloudOn(), admin = role().admin;
   return `<div class="tbl-wrap"><table class="tbl">
-    <thead><tr><th>Name</th><th class="hide-mobile">Kunde</th><th class="num">Erfasst</th><th class="num hide-mobile">Stundensatz</th><th class="num hide-mobile">Betrag</th><th></th></tr></thead>
+    <thead><tr><th>Name</th><th class="hide-mobile">Kunde</th>${cloud ? '<th class="hide-mobile">Projektleiter</th>' : ''}<th class="num">${cloud ? 'Meine Zeit' : 'Erfasst'}</th>${money ? '<th class="num hide-mobile">Stundensatz</th>' : ''}<th></th></tr></thead>
     <tbody>${list.map(p => {
-      const es = S.entries.filter(e => e.projectId === p.id);
+      const es = S.entries.filter(e => e.projectId === p.id), edit = canEditProject(p);
       return `<tr class="${p.archived ? 'archived' : ''}">
-        <td><button class="name-cell" data-action="edit-project" data-id="${p.id}"><span class="dot" style="background:${p.color}"></span>${esc(p.name)}${p.archived ? ' <span class="chip">archiviert</span>' : ''}${p.billable && p.rate == null ? ' <span class="chip warn">Stundensatz fehlt</span>' : ''}</button></td>
+        <td><button class="name-cell" ${edit ? `data-action="edit-project" data-id="${p.id}"` : ''}><span class="dot" style="background:${p.color}"></span>${esc(p.name)}${p.archived ? ' <span class="chip">archiviert</span>' : ''}${money && p.billable && p.rate == null ? ' <span class="chip warn">Stundensatz fehlt</span>' : ''}${cloud && admin && !p.listId ? ' <span class="chip">Rechte ausstehend</span>' : ''}</button></td>
         <td class="hide-mobile">${esc(client(p.clientId)?.name || '–')}</td>
+        ${cloud ? `<td class="hide-mobile">${p.leadName ? esc(p.leadName) : '<span class="muted">–</span>'}</td>` : ''}
         <td class="num">${fmtDur(sum(es))}</td>
-        <td class="num hide-mobile">${p.rate != null ? fmtMoney(Number(p.rate)) : p.billable ? '<span class="warn-text">fehlt</span>' : '<span class="muted">–</span>'}</td>
-        <td class="num hide-mobile">${fmtMoney(es.reduce((a, e) => a + amountOf(e), 0))}</td>
-        <td class="act">
+        ${money ? `<td class="num hide-mobile">${p.rate != null ? fmtMoney(Number(p.rate)) : p.billable ? '<span class="warn-text">fehlt</span>' : '<span class="muted">–</span>'}</td>` : ''}
+        <td class="act">${edit ? `
           <button class="icon-btn" data-action="edit-project" data-id="${p.id}" title="Bearbeiten">${ic('edit')}</button>
           <button class="icon-btn" data-action="archive-project" data-id="${p.id}" title="${p.archived ? 'Wiederherstellen' : 'Archivieren'}">${ic('archive')}</button>
-          <button class="icon-btn" data-action="delete-project" data-id="${p.id}" title="Löschen">${ic('trash')}</button>
+          <button class="icon-btn" data-action="delete-project" data-id="${p.id}" title="Löschen">${ic('trash')}</button>` : ''}
         </td></tr>`;
     }).join('')}</tbody></table></div>`;
 }
@@ -859,11 +884,21 @@ function afterProjects() {
 // opts: { name, onSaved(id), onCancel() } – für das Anlegen direkt aus der Projektauswahl
 function openProjectModal(id, opts = {}) {
   const p = id ? proj(id) : null;
-  const d = p ? { ...p } : { name: opts.name || '', clientId: null, color: COLORS[S.projects.length % COLORS.length], rate: null, billable: true };
+  if (p ? !canEditProject(p) : !canCreateProject()) return toast('Keine Berechtigung, dieses Projekt zu bearbeiten');
+  const cloud = cloudOn(), admin = role().admin;
+  const me = S.roles.find(r => r.id === meId());
+  const d = p ? { ...p } : { name: opts.name || '', clientId: null, color: COLORS[S.projects.length % COLORS.length], rate: null, billable: true, leadId: cloud && !admin ? meId() : null };
+  const leads = S.roles.filter(r => r.active && r.roles.includes('pl')).sort(byName);
+  const leadField = !cloud ? '' : admin
+    ? `<label class="field"><span>Projektleiter</span><select name="leadId"><option value="">– kein Projektleiter –</option>
+        ${leads.map(r => `<option value="${r.id}" ${r.id === d.leadId ? 'selected' : ''}>${esc(r.name)}</option>`).join('')}</select></label>
+       ${leads.length ? '' : '<p class="muted" style="margin-top:-8px">Noch niemand hat die Rolle Projektleiter (Benutzer & Rollen).</p>'}`
+    : `<div class="field"><span>Projektleiter</span><div class="select-btn">${esc(d.leadName || me?.name || S.settings.userName)}</div></div>`;
   openModal(`<h2>${p ? 'Projekt bearbeiten' : 'Neues Projekt'}</h2><form id="pf" novalidate>
     <label class="field"><span>Projektname</span><input name="pname" value="${esc(d.name)}" autocomplete="off"></label>
     <label class="field"><span>Kunde</span><select name="clientId"><option value="">Ohne Kunde</option>
       ${[...S.clients].sort(byName).map(c => `<option value="${c.id}" ${c.id === d.clientId ? 'selected' : ''}>${esc(c.name)}</option>`).join('')}</select></label>
+    ${leadField}
     <div class="field"><span>Farbe</span><div class="swatches">${COLORS.map(c => `<label class="sw" style="--c:${c}"><input type="radio" name="color" value="${c}" ${c === d.color ? 'checked' : ''}><i></i></label>`).join('')}</div></div>
     <label class="check"><input type="checkbox" name="billable" ${d.billable ? 'checked' : ''}> Einträge standardmäßig abrechenbar</label>
     <label class="field"><span>Stundensatz in ${esc(S.settings.currency)} <span class="req">*</span> (Pflicht bei abrechenbaren Projekten)</span>
@@ -886,6 +921,10 @@ function openProjectModal(id, opts = {}) {
         color: f.querySelector('[name=color]:checked')?.value || d.color,
         rate: rateStr === '' ? null : Number(rateStr), billable: el.billable.checked
       };
+      if (cloud) {
+        vals.leadId = admin ? (el.leadId.value || null) : d.leadId;
+        vals.leadName = S.roles.find(r => r.id === vals.leadId)?.name || (vals.leadId === meId() ? S.settings.userName : d.leadName || '');
+      }
       if (!vals.name) return fail('Bitte einen Projektnamen eingeben.', el.pname);
       if (vals.rate != null && (isNaN(vals.rate) || vals.rate < 0)) return fail('Bitte einen gültigen Stundensatz eingeben.', el.rate);
       if (vals.billable && !(vals.rate > 0)) return fail('Für abrechenbare Projekte ist ein Stundensatz Pflicht. Bitte eintragen oder „abrechenbar“ abwählen.', el.rate);
@@ -900,26 +939,188 @@ function openProjectModal(id, opts = {}) {
 
 function viewList(kind) {
   const isC = kind === 'clients';
-  const list = [...S[kind]].sort(byName);
+  const list = [...S[kind]].sort(byName), edit = isC ? canEditClients() : canEditTags();
   return `<div class="page">
     <div class="page-head"><h1>${isC ? 'Kunden' : 'Tags'}</h1></div>
     <div class="card">
-      <form class="toolbar" data-form="add-${kind}">
+      ${edit ? `<form class="toolbar" data-form="add-${kind}">
         <input type="text" name="n" placeholder="${isC ? 'Neuen Kunden hinzufügen' : 'Neuen Tag hinzufügen'}" required autocomplete="off">
         <button class="btn primary">HINZUFÜGEN</button>
-      </form>
+      </form>` : ''}
       ${list.length ? `<div class="tbl-wrap"><table class="tbl">
         <thead><tr><th>Name</th><th class="num">${isC ? 'Projekte' : 'Einträge'}</th><th class="num">Erfasst</th><th></th></tr></thead>
         <tbody>${list.map(x => {
           const es = isC ? S.entries.filter(e => proj(e.projectId)?.clientId === x.id) : S.entries.filter(e => e.tagIds.includes(x.id));
           const count = isC ? S.projects.filter(p => p.clientId === x.id).length : es.length;
           return `<tr><td><span class="name-cell">${esc(x.name)}</span></td><td class="num">${count}</td><td class="num">${fmtDur(sum(es))}</td>
-            <td class="act"><button class="icon-btn" data-action="rename-item" data-kind="${kind}" data-id="${x.id}" title="Umbenennen">${ic('edit')}</button>
-            <button class="icon-btn" data-action="delete-item" data-kind="${kind}" data-id="${x.id}" title="Löschen">${ic('trash')}</button></td></tr>`;
+            <td class="act">${edit ? `<button class="icon-btn" data-action="rename-item" data-kind="${kind}" data-id="${x.id}" title="Umbenennen">${ic('edit')}</button>
+            <button class="icon-btn" data-action="delete-item" data-kind="${kind}" data-id="${x.id}" title="Löschen">${ic('trash')}</button>` : ''}</td></tr>`;
         }).join('')}</tbody></table></div>`
       : `<div class="empty"><p>Noch keine ${isC ? 'Kunden' : 'Tags'} angelegt.</p></div>`}
     </div>
   </div>`;
+}
+
+/* =====================================================================
+   Benutzer & Rollen (nur Administratoren, nur mit Microsoft 365)
+   ===================================================================== */
+const ROLE_KEYS = [['admin', 'Administrator'], ['pl', 'Projektleiter'], ['ma', 'Mitarbeiter'], ['bh', 'Buchhaltung']];
+function viewUsers() {
+  const st = Cloud.permStatus(), users = [...S.roles].sort(byName);
+  const status = st.running ? '<span class="perm-run">Rechte werden in SharePoint gesetzt …</span>'
+    : st.error ? `<span class="warn-text">Fehler: ${esc(st.error)}</span>`
+    : st.pending || st.pendingLists ? '<span class="muted">Änderungen werden beim nächsten Abgleich übernommen.</span>'
+    : `<span class="ok-text">Rechte aktuell${st.at ? ' (Stand ' + new Date(st.at).toLocaleString('de-DE') + ')' : ''}.</span>`;
+  return `<div class="page">
+    <div class="page-head"><h1>Benutzer & Rollen</h1><button class="btn primary" data-action="user-add">${ic('plus')} BENUTZER HINZUFÜGEN</button></div>
+    <div class="card section-gap"><div class="card-body perm-bar">${status}
+      <button class="btn ghost small" data-action="perm-apply" ${st.running ? 'disabled' : ''}>Rechte jetzt abgleichen</button></div></div>
+    <div class="card section-gap">
+      ${users.length ? `<div class="tbl-wrap"><table class="tbl users-tbl">
+        <thead><tr><th>Name</th>${ROLE_KEYS.map(([, t]) => `<th class="c">${t}</th>`).join('')}<th class="c">Aktiv</th></tr></thead>
+        <tbody>${users.map(u => `<tr class="${u.active ? '' : 'archived'}">
+          <td><div class="name-cell">${esc(u.name)}</div><div class="muted small">${esc(u.upn)}</div></td>
+          ${ROLE_KEYS.map(([k, t]) => `<td class="c"><input type="checkbox" aria-label="${t}" data-change="role" data-id="${u.id}" data-role="${k}" ${u.roles.includes(k) ? 'checked' : ''}></td>`).join('')}
+          <td class="c"><input type="checkbox" aria-label="Aktiv" data-change="role-active" data-id="${u.id}" ${u.active ? 'checked' : ''}></td></tr>`).join('')}</tbody>
+      </table></div>` : '<div class="empty"><p>Noch keine Benutzer.</p></div>'}
+    </div>
+    ${teamsCardHTML()}
+    <div class="card"><div class="card-head">Was die Rollen dürfen</div><div class="card-body">
+      <ul class="help-list">
+        <li><b>Administrator:</b> alles, auch Benutzer & Rollen; sieht alle Zeiten und Stundensätze.</li>
+        <li><b>Projektleiter:</b> legt eigene Projekte an und pflegt sie (inkl. Stundensatz); sieht alle Zeiten der Projekte, deren Projektleiter er ist.</li>
+        <li><b>Mitarbeiter:</b> erfasst eigene Zeiten und sieht nur diese; keine Stundensätze und Beträge.</li>
+        <li><b>Buchhaltung:</b> sieht alle Projekte und alle Zeiten mit Stundensätzen und Beträgen (nur lesend).</li>
+        <li><b>Aktiv</b> abwählen, wenn jemand ausscheidet: Zugriff wird entzogen, erfasste Zeiten bleiben erhalten.</li>
+      </ul>
+      <p class="muted" style="margin-bottom:0">Eine Person kann mehrere Rollen haben. Wer selbst Zeiten erfasst, braucht zusätzlich „Mitarbeiter“ (Projektleiter können immer erfassen).</p>
+    </div></div>
+  </div>`;
+}
+/* ---------- Teams-App-Paket (manifest.json + 2 Symbole als ZIP) ---------- */
+const appBaseUrl = () => location.origin + location.pathname.replace(/[^/]*$/, '');
+function teamsCardHTML() {
+  const host = location.host, local = /^(localhost|127\.)/.test(location.hostname);
+  return `<div class="card section-gap"><div class="card-head">Microsoft Teams</div><div class="card-body">
+    <p style="margin-top:0">Die Zeiterfassung als App in der Teams-Leiste – für alle Mitarbeiter ohne Installation, Anmeldung automatisch über Teams.</p>
+    <ol class="help-list">
+      <li>In Entra ID bei der App-Registrierung unter <b>Authentifizierung → Single-Page-Anwendung</b> zusätzlich diese Umleitungs-URI eintragen: <code>brk-multihub://${esc(host)}</code></li>
+      <li>Paket herunterladen und im <b>Teams Admin Center</b> hochladen (Anleitung Kapitel 4.3).</li>
+    </ol>
+    <button class="btn primary small" data-action="teams-package" ${local ? 'disabled title="Nur über die veröffentlichte Adresse möglich"' : ''}>${ic('download')} Teams-App-Paket herunterladen</button>
+    ${local ? '<p class="muted small">Hinweis: Das Paket lässt sich nur erstellen, wenn die App über ihre veröffentlichte Adresse (https) geöffnet ist.</p>' : ''}
+  </div></div>`;
+}
+const CRC_TABLE = (() => { const t = new Uint32Array(256); for (let n = 0; n < 256; n++) { let c = n; for (let k = 0; k < 8; k++) c = c & 1 ? 0xEDB88320 ^ (c >>> 1) : c >>> 1; t[n] = c >>> 0; } return t; })();
+const crc32 = b => { let c = 0xFFFFFFFF; for (const x of b) c = CRC_TABLE[(c ^ x) & 0xFF] ^ (c >>> 8); return (c ^ 0xFFFFFFFF) >>> 0; };
+function makeZip(files) { // unkomprimiertes ZIP (Methode „stored“) – reicht für Teams
+  const enc = new TextEncoder(), parts = [], central = [];
+  let offset = 0;
+  for (const f of files) {
+    const name = enc.encode(f.name), data = f.data, crc = crc32(data);
+    const h = new DataView(new ArrayBuffer(30));
+    h.setUint32(0, 0x04034b50, true); h.setUint16(4, 20, true); h.setUint32(14, crc, true);
+    h.setUint32(18, data.length, true); h.setUint32(22, data.length, true); h.setUint16(26, name.length, true);
+    parts.push(new Uint8Array(h.buffer), name, data);
+    const c = new DataView(new ArrayBuffer(46));
+    c.setUint32(0, 0x02014b50, true); c.setUint16(4, 20, true); c.setUint16(6, 20, true); c.setUint32(16, crc, true);
+    c.setUint32(20, data.length, true); c.setUint32(24, data.length, true); c.setUint16(28, name.length, true); c.setUint32(42, offset, true);
+    central.push(new Uint8Array(c.buffer), name);
+    offset += 30 + name.length + data.length;
+  }
+  const size = central.reduce((a, p) => a + p.length, 0), e = new DataView(new ArrayBuffer(22));
+  e.setUint32(0, 0x06054b50, true); e.setUint16(8, files.length, true); e.setUint16(10, files.length, true); e.setUint32(12, size, true); e.setUint32(16, offset, true);
+  return new Blob([...parts, ...central, new Uint8Array(e.buffer)], { type: 'application/zip' });
+}
+async function stableGuid(seed) { // gleiche App-ID bei jedem Herunterladen → Updates statt Duplikate
+  const h = new Uint8Array(await crypto.subtle.digest('SHA-1', new TextEncoder().encode(seed))).slice(0, 16);
+  h[6] = (h[6] & 0x0f) | 0x50; h[8] = (h[8] & 0x3f) | 0x80;
+  const x = [...h].map(b => b.toString(16).padStart(2, '0')).join('');
+  return `${x.slice(0, 8)}-${x.slice(8, 12)}-${x.slice(12, 16)}-${x.slice(16, 20)}-${x.slice(20)}`;
+}
+function outlineIcon() { // 32×32, weiß auf transparent (Vorgabe von Teams)
+  const c = document.createElement('canvas'); c.width = c.height = 32;
+  const g = c.getContext('2d'); g.strokeStyle = '#fff'; g.lineWidth = 2.6; g.lineCap = 'round';
+  g.beginPath(); g.arc(16, 17, 10.5, 0, Math.PI * 2); g.stroke();
+  g.beginPath(); g.moveTo(16, 11); g.lineTo(16, 17); g.lineTo(20, 20); g.stroke();
+  g.beginPath(); g.moveTo(13, 3.5); g.lineTo(19, 3.5); g.stroke();
+  return new Promise(ok => c.toBlob(b => b.arrayBuffer().then(a => ok(new Uint8Array(a))), 'image/png'));
+}
+async function downloadTeamsPackage() {
+  try {
+    const base = appBaseUrl(), cfg = Cloud.config();
+    const manifest = {
+      $schema: 'https://developer.microsoft.com/en-us/json-schemas/teams/v1.17/MicrosoftTeams.schema.json',
+      manifestVersion: '1.17', version: '1.0.' + Math.floor(Date.now() / 86400000) % 60000,
+      id: await stableGuid('zeiterfassung-teams|' + cfg.clientId + '|' + base),
+      developer: { name: 'Interne Zeiterfassung', websiteUrl: base, privacyUrl: base + 'anleitung.html', termsOfUseUrl: base + 'anleitung.html' },
+      name: { short: 'Zeiterfassung', full: 'Zeiterfassung – Stundenreporting' },
+      description: { short: 'Arbeitszeiten je Projekt erfassen und auswerten', full: 'Timer und manuelle Zeiterfassung je Projekt mit Tags und Kommentar, Berichte und Export. Daten liegen in SharePoint im eigenen Microsoft 365.' },
+      icons: { color: 'color.png', outline: 'outline.png' },
+      accentColor: '#03A9F4',
+      staticTabs: [{ entityId: 'zeiterfassung', name: 'Zeiterfassung', contentUrl: base + '?teams=1#/tracker', websiteUrl: base, scopes: ['personal'] }],
+      permissions: ['identity'],
+      validDomains: [location.host]
+    };
+    const color = new Uint8Array(await (await fetch('icons/icon-192.png', { cache: 'no-store' })).arrayBuffer());
+    const zip = makeZip([
+      { name: 'manifest.json', data: new TextEncoder().encode(JSON.stringify(manifest, null, 2)) },
+      { name: 'color.png', data: color },
+      { name: 'outline.png', data: await outlineIcon() }
+    ]);
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(zip); a.download = 'Zeiterfassung_Teams.zip';
+    document.body.appendChild(a); a.click();
+    setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 1000);
+    toast('Teams-App-Paket heruntergeladen');
+  } catch (e) { toast('Paket konnte nicht erstellt werden: ' + e.message); }
+}
+
+function setRole(id, key, on) {
+  const u = S.roles.find(r => r.id === id);
+  if (!u) return;
+  const admins = S.roles.filter(r => r.active && r.roles.includes('admin'));
+  if (key === 'admin' && !on && admins.length === 1 && admins[0].id === id) { toast('Es muss mindestens einen Administrator geben'); return render(); }
+  if (key === 'admin' && !on && id === meId() && !confirm('Sich selbst die Administrator-Rolle entziehen? Danach haben Sie keinen Zugriff mehr auf diese Seite.')) return render();
+  u.roles = on ? [...new Set([...u.roles, key])] : u.roles.filter(r => r !== key);
+  save(); render();
+}
+function setActive(id, on) {
+  const u = S.roles.find(r => r.id === id);
+  if (!u) return;
+  if (!on && id === meId()) { toast('Sie können sich nicht selbst deaktivieren'); return render(); }
+  u.active = on; save(); render();
+}
+function openUserAdd() {
+  openModal(`<h2>Benutzer hinzufügen</h2>
+    <label class="field"><span>Name oder E-Mail (aus Microsoft 365)</span><input id="us-q" placeholder="z. B. Müller" autocomplete="off"></label>
+    <div id="us-res" class="us-res"><p class="muted">Mindestens 2 Zeichen eingeben.</p></div>
+    <div class="modal-actions"><span class="grow"></span><button class="btn ghost" data-action="close-modal">Schließen</button></div>`, m => {
+    const q = $('#us-q', m), res = $('#us-res', m);
+    let t, found = [];
+    q.focus();
+    q.addEventListener('input', () => {
+      clearTimeout(t);
+      t = setTimeout(async () => {
+        if (q.value.trim().length < 2) { res.innerHTML = '<p class="muted">Mindestens 2 Zeichen eingeben.</p>'; return; }
+        res.innerHTML = '<p class="muted">Suche …</p>';
+        try { found = await Cloud.searchUsers(q.value); }
+        catch (e) { res.innerHTML = `<p class="warn-text">${esc(e.message)}</p>`; return; }
+        res.innerHTML = found.length ? found.map((u, i) => {
+          const exists = S.roles.some(r => r.id === u.id);
+          return `<button class="pp-item" data-i="${i}" ${exists ? 'disabled' : ''}><span class="avatar">${esc((u.name || '?').split(/\s+/).slice(0, 2).map(w => w[0]).join('').toUpperCase())}</span>
+            <span><b>${esc(u.name)}</b><br><span class="muted small">${esc(u.mail)}</span></span>${exists ? '<span class="chip">bereits vorhanden</span>' : ''}</button>`;
+        }).join('') : '<p class="muted">Niemand gefunden.</p>';
+      }, 300);
+    });
+    res.addEventListener('click', ev => {
+      const b = ev.target.closest('[data-i]');
+      if (!b || b.disabled) return;
+      const u = found[Number(b.dataset.i)];
+      S.roles.push({ id: u.id, name: u.name, upn: u.upn, roles: ['ma'], active: true });
+      save(); closeModal(); render(); toast(`${u.name} als Mitarbeiter hinzugefügt – Rollen bei Bedarf anpassen`);
+    });
+  });
 }
 
 /* =====================================================================
@@ -1041,9 +1242,10 @@ const ACTIONS = {
   'rep-print': () => window.print(),
   'new-project': () => openProjectModal(null),
   'edit-project': el => openProjectModal(el.dataset.id),
-  'archive-project': el => { const p = proj(el.dataset.id); p.archived = !p.archived; save(); render(); toast(p.archived ? 'Projekt archiviert' : 'Projekt wiederhergestellt'); },
+  'archive-project': el => { const p = proj(el.dataset.id); if (!canEditProject(p)) return; p.archived = !p.archived; save(); render(); toast(p.archived ? 'Projekt archiviert' : 'Projekt wiederhergestellt'); },
   'delete-project': el => {
     const p = proj(el.dataset.id), n = S.entries.filter(e => e.projectId === p.id).length;
+    if (!canEditProject(p)) return;
     if (!confirm(`Projekt „${p.name}“ löschen?${n ? `\n${n} Einträge bleiben erhalten, verlieren aber die Projektzuordnung.` : ''}`)) return;
     S.projects = S.projects.filter(x => x !== p);
     S.entries.forEach(e => { if (e.projectId === p.id) e.projectId = null; });
@@ -1062,6 +1264,9 @@ const ACTIONS = {
     else [...S.entries, S.running, UI.draft].forEach(e => { if (e) e.tagIds = e.tagIds.filter(t => t !== id); });
     save(); render();
   },
+  'user-add': () => openUserAdd(),
+  'teams-package': () => downloadTeamsPackage(),
+  'perm-apply': () => { Cloud.reconcile(); render(); },
   'cloud-login': () => Cloud.login(),
   'cloud-logout': () => Cloud.logout(),
   'cloud-sync': () => Cloud.sync(),
@@ -1096,6 +1301,8 @@ document.addEventListener('change', ev => {
     if (el.name === 'scope') { UI.report.userId = ''; UI.report.groupBy = el.value === 'team' ? 'user' : 'project'; }
     render();
   } else if (k === 'proj-arch') { UI.showArchived = el.checked; render(); }
+  else if (k === 'role') setRole(el.dataset.id, el.dataset.role, el.checked);
+  else if (k === 'role-active') setActive(el.dataset.id, el.checked);
   else if (k === 'import') { importJSON(el.files[0]); el.value = ''; }
 });
 
