@@ -62,7 +62,7 @@ const HELP = [
       <li>Zeitraum wählen: <b>Tag, Woche, Monat, Jahr</b> (mit den Pfeilen blättern) oder <b>Zeitraum</b> mit Von/Bis.</li>
       <li>Bei Bedarf filtern: Projekt, Kunde, Tag, abrechenbar, Suchbegriff im Kommentar.</li>
       <li>Sie sehen Summen, ein Diagramm, eine <b>Aufschlüsselung</b> (nach Projekt, Kunde, Tag, Beschreibung oder Datum) und den <b>Einzelnachweis</b>.</li>
-      <li><b>CSV</b> lädt eine Datei für Excel. <b>PDF / Drucken</b> öffnet den Druckdialog – dort „Als PDF speichern“ wählen.</li>
+      <li><b>CSV</b> lädt eine Datei für Excel. <b>PDF / Drucken</b> öffnet den Druckdialog – dort „Als PDF speichern“ wählen. Der Ausdruck enthält oben den Firmenkopf mit MH3-Logo, Zeitraum, Filter und Erstellungsdatum.</li>
     </ol>
     <p>Mitarbeiter sehen nur ihre eigenen Zeiten und keine Beträge. Projektleiter, Buchhaltung und Administratoren haben zusätzlich die Team-Auswertung (siehe unten).</p>`
   },
@@ -100,19 +100,46 @@ const HELP = [
     <p>Andere Mitarbeiter sehen Ihre Zeiten nicht – weder in der App noch in SharePoint.</p>`
   },
   {
-    roles: ['admin', 'pl'], title: 'Projekte und Kunden anlegen (Projektleiter, Administratoren)', body: `
+    roles: 'all', title: 'Welche Projekte sehe ich?', body: `
+    <p>Mitarbeiter und Projektleiter sehen nur die Projekte, denen sie <b>zugeordnet</b> sind:</p>
+    <ul>
+      <li><b>Projektleiter</b> ordnet der Administrator einem Projekt zu.</li>
+      <li><b>Mitarbeiter</b> ordnet der jeweilige Projektleiter seinem Projekt zu (Team).</li>
+    </ul>
+    <p>Fehlt Ihnen ein Projekt in der Auswahl, wenden Sie sich an den Projektleiter. Administratoren und Buchhaltung sehen alle Projekte.</p>`
+  },
+  {
+    roles: ['admin', 'pl'], title: 'Team zuordnen (Projektleiter)', body: `
+    <ol>
+      <li>Links auf <b>Projekte</b>. Sie sehen die Projekte, deren Projektleiter Sie sind.</li>
+      <li>Beim Projekt auf das <b>Personen-Symbol</b> (Team zuordnen) tippen.</li>
+      <li>Die Mitarbeiter anhaken, die auf dieses Projekt Zeiten erfassen sollen (Suche oben) → <b>Speichern</b>.</li>
+    </ol>
+    <p>Die angehakten Personen sehen das Projekt sofort in ihrer Auswahl. Sie als Projektleiter sehen deren Zeiten unter <b>Berichte → „Team meiner Projekte“</b>. Häkchen entfernen nimmt jemanden aus dem Team; bereits erfasste Zeiten bleiben erhalten.</p>`
+  },
+  {
+    roles: ['admin', 'bh'], title: 'Projekte und Kunden anlegen (Buchhaltung, Administratoren)', body: `
     <ol>
       <li>Links auf <b>Projekte</b> → <b>NEUES PROJEKT</b>.</li>
-      <li>Name, Kunde, Farbe festlegen. Legt ein Projektleiter das Projekt an, ist er selbst Projektleiter; Administratoren wählen den Projektleiter aus.</li>
+      <li>Name, Kunde, Farbe festlegen. Den <b>Projektleiter</b> wählt der Administrator aus.</li>
       <li><b>„Einträge standardmäßig abrechenbar“</b> anhaken, wenn die Zeiten abgerechnet werden – dann ist der <b>Stundensatz Pflicht</b>.</li>
       <li><b>Speichern.</b></li>
     </ol>
     <ul>
-      <li>Neue Projekte bekommen ihre SharePoint-Rechte, sobald ein Administrator die App öffnet (bis dahin „Rechte ausstehend“). Erfassen kann man sofort.</li>
-      <li><b>Archivieren</b> (Karton-Symbol) blendet abgeschlossene Projekte aus der Auswahl aus; die Zeiten bleiben.</li>
+      <li>Ein neues Projekt sieht zunächst niemand außer Administratoren und Buchhaltung. Erst wenn der Administrator den Projektleiter und dieser sein Team zuordnet, erscheint es bei diesen Personen.</li>
+      <li>Neue Projekte bekommen ihre SharePoint-Rechte, sobald ein Administrator die App öffnet (bis dahin „Rechte ausstehend“).</li>
+      <li><b>Projekt abschließen</b> (Karton-Symbol): Das Projekt wird archiviert und <b>geschlossen</b> – es verschwindet aus der Auswahl, es können keine Zeiten mehr erfasst oder geändert werden (auch nicht direkt in SharePoint). Alle Zeiten bleiben in den Berichten. Mit „Abgeschlossene anzeigen“ und dem Pfeil-Symbol lässt es sich wieder öffnen. <b>Löschen</b> können nur Administratoren.</li>
       <li><b>Kunden</b>: links auf Kunden → Namen eintragen → HINZUFÜGEN.</li>
-      <li>Projektleiter können nur Projekte bearbeiten, deren Projektleiter sie sind.</li>
     </ul>`
+  },
+  {
+    roles: ['admin'], title: 'Administration: Projektleiter zuordnen', body: `
+    <ol>
+      <li>Links auf <b>Projekte</b> → beim Projekt auf den <b>Stift</b>.</li>
+      <li>Unter <b>Projektleiter</b> die Person wählen (sie braucht die Rolle Projektleiter unter Benutzer & Rollen) → <b>Speichern</b>.</li>
+      <li>Der Projektleiter sieht das Projekt danach und ordnet sein Team zu. Administratoren können das Team ebenfalls über das Personen-Symbol pflegen.</li>
+    </ol>
+    <p>In der Projektliste steht „fehlt“, wenn noch kein Projektleiter zugeordnet ist.</p>`
   },
   {
     roles: ['admin', 'pl', 'bh'], title: 'Team-Auswertung (Projektleiter, Buchhaltung, Administratoren)', body: `
@@ -129,7 +156,7 @@ const HELP = [
     roles: ['admin'], title: 'Administration: Benutzer & Rollen', body: `
     <ol>
       <li>Links auf <b>Benutzer & Rollen</b> → <b>BENUTZER HINZUFÜGEN</b> → Namen eintippen → Person aus Microsoft 365 wählen (erhält zunächst „Mitarbeiter“).</li>
-      <li>Rollen per Häkchen: <b>Administrator</b> (alles), <b>Projektleiter</b> (eigene Projekte, Team-Auswertung), <b>Mitarbeiter</b> (eigene Zeiten), <b>Buchhaltung</b> (alles lesen, mit Beträgen).</li>
+      <li>Rollen per Häkchen: <b>Administrator</b> (alles, ordnet Projektleiter zu), <b>Projektleiter</b> (seine Projekte, ordnet Mitarbeiter zu, Team-Auswertung), <b>Mitarbeiter</b> (zugeordnete Projekte, eigene Zeiten), <b>Buchhaltung</b> (legt Projekte an, sieht alles mit Beträgen).</li>
       <li>Die App setzt die Rechte in SharePoint automatisch; oben steht dann „Rechte aktuell“. Sofort anstoßen mit <b>„Rechte jetzt abgleichen“</b>.</li>
       <li><b>Austritt:</b> „Aktiv“ abwählen – der Zugriff wird entzogen, die Zeiten bleiben erhalten. Bei Projektleitern einen Nachfolger im Projekt eintragen.</li>
     </ol>
@@ -160,7 +187,8 @@ const HELP = [
       <li><b>Falsches Projekt?</b> Im Eintrag auf den Projektnamen tippen und das richtige wählen.</li>
       <li><b>Einträge fehlen auf dem anderen Gerät?</b> Auf beiden Geräten auf das Wolken-Symbol tippen; beide müssen mit demselben Konto angemeldet sein.</li>
       <li><b>Passender Tag fehlt?</b> Beim Administrator melden – bis dahin den Kommentar nutzen.</li>
-      <li><b>Neues Projekt fehlt in der Auswahl?</b> Projekte legen Projektleiter oder Administratoren an.</li>
+      <li><b>Projekt fehlt in der Auswahl?</b> Sie sind dem Projekt noch nicht zugeordnet – bitte an den Projektleiter wenden.</li>
+      <li><b>Eintrag lässt sich nicht ändern („abgeschlossen“)?</b> Das Projekt wurde abgeschlossen. Korrekturen nur noch durch einen Administrator.</li>
       <li><b>Betrag ist 0 €?</b> Beim Projekt fehlt der Stundensatz oder der Eintrag ist nicht abrechenbar (€).</li>
     </ul>`
   }

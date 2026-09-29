@@ -37,7 +37,8 @@ const Cloud = (() => {
     clients: { name: 'ZE_Kunden', cols: [text('AppId', 'App-ID', true)] },
     projects: {
       name: 'ZE_Projekte', cols: [text('AppId', 'App-ID', true), text('ClientAppId', 'Kunden-ID'), text('Color', 'Farbe'), bool('Billable', 'Abrechenbar'),
-        bool('Archived', 'Archiviert'), text('LeadId', 'Projektleiter-ID'), text('LeadName', 'Projektleiter'), text('ListId', 'Zeitenliste')]
+        bool('Archived', 'Archiviert'), text('LeadId', 'Projektleiter-ID'), text('LeadName', 'Projektleiter'), text('ListId', 'Zeitenliste'),
+        { name: 'MemberIds', displayName: 'Team (IDs)', text: { allowMultipleLines: true } }]
     },
     rates: { name: 'ZE_Stundensaetze', cols: [text('AppId', 'Projekt-ID', true), num('Rate', 'Stundensatz')] },
     tags: { name: 'ZE_Tags', cols: [text('AppId', 'App-ID', true)] },
@@ -71,7 +72,8 @@ const Cloud = (() => {
   const canWrite = k => {
     const r = myRole();
     if (k === 'roles' || k === 'tags') return r.admin;
-    if (k === 'clients' || k === 'projects' || k === 'rates') return r.admin || r.pl;
+    if (k === 'projects') return r.admin || r.bh || r.pl;   // Projektleiter: nur Team seiner Projekte (in der App begrenzt)
+    if (k === 'clients' || k === 'rates') return r.admin || r.bh;
     return true;
   };
 
@@ -213,7 +215,7 @@ const Cloud = (() => {
     const d = document.createElement('div');
     d.id = 'login-screen';
     d.innerHTML = `<div class="login-card">
-      <div class="logo login-logo"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><circle cx="12" cy="12" r="8"/><path d="M12 8v4l2.5 2"/></svg></div>
+      <picture><source media="(prefers-color-scheme: dark)" srcset="icons/logo-quer-weiss.png"><img class="login-brand" src="icons/logo-quer-schwarz.png" alt="MH3 Ingenieure"></picture>
       <h1>Zeiterfassung</h1>
       <p>Bitte mit Ihrem Microsoft-365-Firmenkonto anmelden.</p>
       <button class="btn primary" data-action="cloud-login">MIT MICROSOFT ANMELDEN</button>
@@ -344,7 +346,7 @@ const Cloud = (() => {
   function canon(k, r) {
     switch (k) {
       case 'roles': return { id: r.id, name: r.name || '', upn: r.upn || '', roles: [...(r.roles || [])].sort(), active: !!r.active };
-      case 'projects': return { id: r.id, name: r.name, clientId: r.clientId || null, color: r.color || '', billable: !!r.billable, archived: !!r.archived, leadId: r.leadId || null, leadName: r.leadName || '', listId: r.listId || null };
+      case 'projects': return { id: r.id, name: r.name, clientId: r.clientId || null, color: r.color || '', billable: !!r.billable, archived: !!r.archived, leadId: r.leadId || null, leadName: r.leadName || '', listId: r.listId || null, memberIds: [...(r.memberIds || [])].sort() };
       case 'rates': return { id: r.id, rate: Number(r.rate) };
       case 'entries': return { id: r.id, description: r.description || '', projectId: r.projectId || null, tagIds: [...(r.tagIds || [])], billable: !!r.billable, start: sec(r.start), end: r.end == null ? null : sec(r.end) };
       default: return { id: r.id, name: r.name };
@@ -355,7 +357,7 @@ const Cloud = (() => {
     const c = canon(k, r);
     switch (k) {
       case 'roles': return { Title: c.name || c.upn, AppId: c.id, Upn: c.upn, Roles: c.roles.join(','), Active: c.active };
-      case 'projects': return { Title: c.name, AppId: c.id, ClientAppId: c.clientId || '', Color: c.color, Billable: c.billable, Archived: c.archived, LeadId: c.leadId || '', LeadName: c.leadName, ListId: c.listId || '' };
+      case 'projects': return { Title: c.name, AppId: c.id, ClientAppId: c.clientId || '', Color: c.color, Billable: c.billable, Archived: c.archived, LeadId: c.leadId || '', LeadName: c.leadName, ListId: c.listId || '', MemberIds: c.memberIds.join(',') };
       case 'rates': return { Title: proj(c.id)?.name || c.id, AppId: c.id, Rate: c.rate };
       case 'entries': {
         const p = proj(c.projectId), cl = p && client(p.clientId), h = c.end ? (c.end - c.start) / HOUR : 0;
@@ -373,7 +375,7 @@ const Cloud = (() => {
   function fromFields(k, f) {
     switch (k) {
       case 'roles': return { id: f.AppId, name: f.Title || '', upn: f.Upn || '', roles: (f.Roles || '').split(',').filter(Boolean).sort(), active: !!f.Active };
-      case 'projects': return { id: f.AppId, name: f.Title || '', clientId: f.ClientAppId || null, color: f.Color || '#03a9f4', billable: !!f.Billable, archived: !!f.Archived, leadId: f.LeadId || null, leadName: f.LeadName || '', listId: f.ListId || null };
+      case 'projects': return { id: f.AppId, name: f.Title || '', clientId: f.ClientAppId || null, color: f.Color || '#03a9f4', billable: !!f.Billable, archived: !!f.Archived, leadId: f.LeadId || null, leadName: f.LeadName || '', listId: f.ListId || null, memberIds: (f.MemberIds || '').split(',').filter(Boolean).sort() };
       case 'rates': return { id: f.AppId, rate: Number(f.Rate) };
       case 'entries': return { id: f.AppId, description: f.Comment != null ? f.Comment : f.Title === '-' ? '' : (f.Title || ''), projectId: f.ProjectAppId || null, tagIds: (f.TagAppIds || '').split(',').filter(Boolean), billable: !!f.Billable, start: Date.parse(f.StartTime), end: f.EndTime ? Date.parse(f.EndTime) : null };
       default: return { id: f.AppId, name: f.Title || '' };
@@ -485,6 +487,8 @@ const Cloud = (() => {
   async function withFallback(fields, fn) {
     try { return await fn(fields); }
     catch (e) {
+      if (e.status === 400 && /not recognized|nicht erkannt/i.test(e.message) && !/comment/i.test(e.message))
+        throw new Error('Die SharePoint-Listen sind noch nicht auf dem neuesten Stand – ein Administrator muss die App einmal öffnen.');
       if (e.status !== 400 || !('Comment' in fields) || !/comment/i.test(e.message)) throw e;
       const { Comment, ...rest } = fields;
       return fn(rest);
@@ -598,7 +602,7 @@ const Cloud = (() => {
      ===================================================================== */
   const permSignature = () => JSON.stringify([
     (S.roles || []).map(r => [r.id, r.upn, [...r.roles].sort().join(), r.active]).sort(),
-    S.projects.map(p => [p.id, p.leadId || '', p.listId || '']).sort()
+    S.projects.map(p => [p.id, p.leadId || '', p.listId || '', !!p.archived]).sort()
   ]);
   const COLS_VERSION = 2; // erhöhen, wenn Zeitenlisten neue Spalten bekommen
   function maybeReconcile() {
@@ -665,20 +669,23 @@ const Cloud = (() => {
       // 4) Rechte je Liste
       const act = all.filter(r => r.active && !r.roles.includes('admin')); // Administratoren über die Besitzergruppe
       const has = (r, x) => r.roles.includes(x), tracks = r => has(r, 'ma') || has(r, 'pl');
-      const entriesPlan = leadId => new Map(act.flatMap(r => {
+      // closed = Projekt abgeschlossen: niemand (außer Besitzern) darf noch schreiben
+      const entriesPlan = (leadId, closed) => new Map(act.flatMap(r => {
         const lead = leadId && r.id === leadId && has(r, 'pl');
-        const d = lead || (has(r, 'bh') && tracks(r)) ? RD.pl : has(r, 'bh') ? RD.bh : tracks(r) ? RD.contribute : null;
+        const d = closed
+          ? (lead || has(r, 'bh') ? RD.bh : tracks(r) ? RD.read : null)
+          : (lead || (has(r, 'bh') && tracks(r)) ? RD.pl : has(r, 'bh') ? RD.bh : tracks(r) ? RD.contribute : null);
         return d ? [[S.sync.spIds[r.id], d]] : [];
       }));
       const plan = (fn) => new Map(act.flatMap(r => { const d = fn(r); return d ? [[S.sync.spIds[r.id], d]] : []; }));
       const lists = [
         { id: ids.entries, entries: true, assign: entriesPlan(null) },
-        ...S.projects.filter(p => p.listId).map(p => ({ id: p.listId, entries: true, assign: entriesPlan(p.leadId) })),
-        { id: ids.projects, assign: plan(r => (has(r, 'pl') ? RD.contribute : RD.read)) },
-        { id: ids.clients, assign: plan(r => (has(r, 'pl') ? RD.contribute : RD.read)) },
+        ...S.projects.filter(p => p.listId).map(p => ({ id: p.listId, entries: true, assign: entriesPlan(p.leadId, p.archived) })),
+        { id: ids.projects, assign: plan(r => (has(r, 'pl') || has(r, 'bh') ? RD.contribute : RD.read)) },
+        { id: ids.clients, assign: plan(r => (has(r, 'bh') ? RD.contribute : RD.read)) },
         { id: ids.tags, assign: plan(() => RD.read) }, // Tags pflegt nur der Administrator
         { id: ids.roles, assign: plan(() => RD.read) },
-        { id: ids.rates, assign: plan(r => (has(r, 'pl') ? RD.contribute : has(r, 'bh') ? RD.read : null)) }
+        { id: ids.rates, assign: plan(r => (has(r, 'bh') ? RD.contribute : has(r, 'pl') ? RD.read : null)) }
       ].filter(l => l.id);
       for (const l of lists) await applyListPerms(l, owners.Id);
 

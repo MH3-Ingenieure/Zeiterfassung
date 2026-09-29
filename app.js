@@ -127,7 +127,8 @@ const P = {
   edit: '<path d="M4 20h4L20 8l-4-4L4 16z"/>',
   archive: '<path d="M3 4h18v4H3zM5 8v12h14V8M10 12h4"/>',
   shield: '<path d="M12 3l8 3v6c0 4.5-3.4 8.3-8 9-4.6-.7-8-4.5-8-9V6z"/><path d="M9 12l2 2 4-4"/>',
-  help: '<circle cx="12" cy="12" r="9"/><path d="M9.5 9.5a2.5 2.5 0 1 1 3.5 2.3c-.6.3-1 .9-1 1.6v.6M12 17h.01"/>'
+  help: '<circle cx="12" cy="12" r="9"/><path d="M9.5 9.5a2.5 2.5 0 1 1 3.5 2.3c-.6.3-1 .9-1 1.6v.6M12 17h.01"/>',
+  lock: '<rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/>'
 };
 const ic = n => `<svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${P[n]}</svg>`;
 
@@ -145,9 +146,15 @@ const NAV = [
 const role = () => window.Cloud?.myRole ? Cloud.myRole() : { admin: true, pl: true, ma: true, bh: true, local: true };
 const meId = () => S.sync?.userId || null;
 const canSeeRates = () => { const r = role(); return r.admin || r.pl || r.bh; };
-const canCreateProject = () => { const r = role(); return r.admin || r.pl; };
-const canEditProject = p => { const r = role(); return r.admin || (r.pl && (!cloudOn() || p.leadId === meId())); };
-const canEditClients = () => { const r = role(); return r.admin || r.pl; };
+// Projekte anlegen/pflegen: Administrator und Buchhaltung. Projektleiter ordnet nur sein Team zu.
+const canCreateProject = () => { const r = role(); return r.admin || r.bh; };
+const canEditProject = () => { const r = role(); return r.admin || r.bh; };
+const canEditTeam = p => { const r = role(); return r.admin || (r.pl && p.leadId === meId()); };
+const canEditClients = () => { const r = role(); return r.admin || r.bh; };
+// Mitarbeiter und Projektleiter sehen nur Projekte, denen sie zugeordnet sind
+const canSeeAllProjects = () => { const r = role(); return !cloudOn() || r.admin || r.bh; };
+const isAssigned = p => p.leadId === meId() || (p.memberIds || []).includes(meId());
+const visibleProjects = () => (canSeeAllProjects() ? S.projects : S.projects.filter(isAssigned));
 const canEditTags = () => role().admin;
 const canTeam = () => { const r = role(); return !!window.Cloud?.signedIn() && (r.admin || r.pl || r.bh); };
 const canManageUsers = () => cloudOn() && role().admin;
@@ -224,13 +231,19 @@ function timerBarHTML() {
   </div>`;
 }
 
+// Einträge auf abgeschlossenen Projekten sind gesperrt (nur Administratoren können noch korrigieren)
+const isLocked = e => !!proj(e?.projectId)?.archived && !role().admin;
+const entryLocked = target => target !== 'timer' && target !== 'modal' && isLocked(S.entries.find(x => x.id === target));
+function lockedToast() { toast('Das Projekt ist abgeschlossen – Einträge können nicht mehr geändert werden.'); }
+
 function entryRowHTML(e) {
-  const tags = e.tagIds.map(tag).filter(Boolean);
+  const tags = e.tagIds.map(tag).filter(Boolean), locked = isLocked(e);
   const overnight = startOfDay(e.end) !== startOfDay(e.start) && e.end - startOfDay(e.end) > 0;
-  return `<div class="entry">
+  return `<div class="entry ${locked ? 'locked' : ''}">
     <div class="e-left">
-      <button class="e-desc" data-action="edit-entry" data-id="${e.id}">${e.description ? esc(e.description) : '<span class="muted">(ohne Beschreibung)</span>'}</button>
+      <button class="e-desc" data-action="edit-entry" data-id="${e.id}" title="${esc(e.description)}">${e.description ? esc(e.description) : '<span class="muted">(ohne Beschreibung)</span>'}</button>
       <button class="proj-btn" data-action="pick-project" data-target="${e.id}">${projLabel(e.projectId)}</button>
+      ${locked ? `<span class="chip lock-chip" title="Projekt abgeschlossen">${ic('lock')} abgeschlossen</span>` : ''}
       ${tags.length ? `<div class="e-tags">${tags.map(t => `<span class="chip">${esc(t.name)}</span>`).join('')}</div>` : ''}
     </div>
     <div class="e-right">
@@ -238,7 +251,7 @@ function entryRowHTML(e) {
       <button class="icon-btn ${tags.length ? 'active' : ''}" data-action="pick-tags" data-target="${e.id}" title="Tags">${ic('tag')}</button>
       <button class="icon-btn ${e.billable ? 'active' : ''}" data-action="toggle-billable" data-target="${e.id}" title="Abrechenbar">€</button>
       <span class="e-dur">${fmtDur(dur(e))}</span>
-      <button class="icon-btn" data-action="continue" data-id="${e.id}" title="Fortsetzen">${ic('play')}</button>
+      ${locked ? '' : `<button class="icon-btn" data-action="continue" data-id="${e.id}" title="Fortsetzen">${ic('play')}</button>`}
       <button class="icon-btn" data-action="entry-menu" data-id="${e.id}" title="Weitere Aktionen">${ic('more')}</button>
     </div>
   </div>`;
@@ -406,15 +419,15 @@ function openProjectPicker(anchor, target) {
       const groups = [[null, 'Ohne Kunde'], ...[...S.clients].sort(byName).map(c => [c.id, c.name])];
       let html = q ? '' : `<button class="pp-item ${!cur ? 'sel' : ''}" data-pick=""><span class="dot" style="background:${NO_COLOR}"></span>Kein Projekt</button>`;
       for (const [cid, cname] of groups) {
-        const ps = S.projects.filter(p => (p.clientId || null) === cid && match(p)).sort(byName);
+        const ps = visibleProjects().filter(p => (p.clientId || null) === cid && match(p)).sort(byName);
         if (!ps.length) continue;
         html += `<div class="pp-group">${esc(cname)}</div>` + ps.map(p =>
           `<button class="pp-item ${p.id === cur ? 'sel' : ''}" data-pick="${p.id}"><span class="dot" style="background:${p.color}"></span>${esc(p.name)}</button>`).join('');
       }
       if (q && canCreateProject() && !S.projects.some(p => p.name.toLowerCase() === q)) {
         html += `<button class="pp-item pp-create" data-create>${ic('plus')} Projekt „${esc(inp.value.trim())}“ erstellen</button>`;
-      } else if (!S.projects.length) {
-        html += `<div class="pp-empty">${canCreateProject() ? 'Noch keine Projekte – Namen eintippen zum Anlegen' : 'Noch keine Projekte – Projekte legen Projektleiter oder Administratoren an'}</div>`;
+      } else if (!visibleProjects().length) {
+        html += `<div class="pp-empty">${canCreateProject() ? 'Noch keine Projekte – Namen eintippen zum Anlegen' : 'Ihnen ist noch kein Projekt zugeordnet – bitte an Ihren Projektleiter wenden.'}</div>`;
       } else if (q && !html.includes('data-pick="')) {
         html += '<div class="pp-empty">Kein passendes Projekt gefunden</div>';
       }
@@ -746,7 +759,7 @@ function viewReports() {
       <button class="btn ghost small no-print" data-action="rep-csv">${ic('download')} CSV</button>
       <button class="btn ghost small no-print" data-action="rep-print">${ic('printer')} PDF / Drucken</button>
     </div>
-    <div class="print-only"><b>Stundenbericht ${esc(label)}</b>${S.settings.userName ? ' – ' + esc(S.settings.userName) : ''}</div>
+    ${printHeadHTML(label, from, to, isTeam, users)}
     <div class="card rep-bar no-print">
       <div class="rep-row">
         ${teamOk ? `<select name="scope" data-change="rep">${opt('me', 'Meine Zeiten', R.scope)}${opt('team', teamLabel, R.scope)}</select>` : ''}
@@ -758,7 +771,7 @@ function viewReports() {
           : `<div class="range-nav"><button class="icon-btn" data-action="rep-shift" data-d="-1" aria-label="Zurück">${ic('chevL')}</button><span class="range-label">${esc(label)}</span><button class="icon-btn" data-action="rep-shift" data-d="1" aria-label="Weiter">${ic('chevR')}</button></div>`}
       </div>
       <div class="rep-row">
-        ${sel('projectId', 'Alle Projekte', [['none', 'Ohne Projekt'], ...[...S.projects].sort(byName).map(p => [p.id, p.name])])}
+        ${sel('projectId', 'Alle Projekte', [['none', 'Ohne Projekt'], ...[...(isTeam || canSeeAllProjects() ? S.projects : visibleProjects())].sort(byName).map(p => [p.id, p.name])])}
         ${sel('clientId', 'Alle Kunden', [['none', 'Ohne Kunde'], ...[...S.clients].sort(byName).map(c => [c.id, c.name])])}
         ${sel('tagId', 'Alle Tags', [...S.tags].sort(byName).map(t => [t.id, t.name]))}
         ${sel('billable', 'Abrechenbar & nicht', [['true', 'Nur abrechenbar'], ['false', 'Nur nicht abrechenbar']])}
@@ -774,6 +787,7 @@ function viewReports() {
     <div class="card chart"><div class="card-body">${barChartSVG(list, from, to)}</div></div>
     <div class="card section-gap">
       <div class="card-head">Aufschlüsselung nach
+        <span class="print-inline">${({ user: 'Mitarbeiter', project: 'Projekt', client: 'Kunde', tag: 'Tag', description: 'Beschreibung', day: 'Datum' })[R.groupBy] || ''}</span>
         <select name="groupBy" data-change="rep" class="no-print" style="height:32px;border:1px solid var(--border);border-radius:4px;background:var(--surface);padding:0 6px">
           ${[...(isTeam ? [['user', 'Mitarbeiter']] : []), ['project', 'Projekt'], ['client', 'Kunde'], ['tag', 'Tag'], ['description', 'Beschreibung'], ['day', 'Tag (Datum)']].map(([v, t]) => opt(v, t, R.groupBy)).join('')}
         </select>
@@ -805,6 +819,27 @@ function viewReports() {
           ${money ? `<td class="num hide-mobile">${e.billable ? fmtMoney(amountOf(e)) : '<span class="muted">–</span>'}</td>` : ''}</tr>`).join('')
           || '<tr><td colspan="6" class="muted">Keine Einträge</td></tr>'}</tbody>
       </table></div>
+    </div>
+  </div>`;
+}
+
+// Firmenkopf für Druck / PDF: Logo, Titel, Zeitraum, gewählte Filter, Erstellungsdatum
+function printHeadHTML(label, from, to, isTeam, users) {
+  const R = UI.report, f = [];
+  f.push(isTeam ? (R.userId ? 'Mitarbeiter: ' + (users.find(u => u[0] === R.userId)?.[1] || '') : (role().admin || role().bh ? 'Alle Mitarbeiter' : 'Team meiner Projekte')) : 'Mitarbeiter: ' + (S.settings.userName || '–'));
+  if (R.projectId) f.push('Projekt: ' + (R.projectId === 'none' ? 'ohne Projekt' : proj(R.projectId)?.name || ''));
+  if (R.clientId) f.push('Kunde: ' + (R.clientId === 'none' ? 'ohne Kunde' : client(R.clientId)?.name || ''));
+  if (R.tagId) f.push('Tag: ' + (tag(R.tagId)?.name || ''));
+  if (R.billable) f.push(R.billable === 'true' ? 'nur abrechenbar' : 'nur nicht abrechenbar');
+  if (R.q.trim()) f.push('Suche: „' + R.q.trim() + '“');
+  const range = `${fmtD(from)} – ${fmtD(addDays(to, -1))}`;
+  return `<div class="print-head">
+    <img src="icons/logo-quer-schwarz.png" alt="MH3 Ingenieure" class="ph-logo">
+    <div class="ph-meta">
+      <div class="ph-title">Stundenbericht</div>
+      <div><b>Zeitraum:</b> ${esc(label === range ? range : label + ' (' + range + ')')}</div>
+      <div>${esc(f.join(' · '))}</div>
+      <div class="ph-date">Erstellt am ${new Date().toLocaleString('de-DE', { dateStyle: 'medium', timeStyle: 'short' })}</div>
     </div>
   </div>`;
 }
@@ -848,7 +883,7 @@ function viewProjects() {
     <div class="card">
       <div class="toolbar">
         <input type="search" id="proj-q" placeholder="Projekt suchen…" value="${esc(UI.projQ)}">
-        <label class="check" style="margin:0"><input type="checkbox" data-change="proj-arch" ${UI.showArchived ? 'checked' : ''}> Archivierte anzeigen</label>
+        <label class="check" style="margin:0"><input type="checkbox" data-change="proj-arch" ${UI.showArchived ? 'checked' : ''}> Abgeschlossene anzeigen</label>
       </div>
       <div id="proj-list">${projectTableHTML()}</div>
     </div>
@@ -856,26 +891,54 @@ function viewProjects() {
 }
 function projectTableHTML() {
   const q = UI.projQ.trim().toLowerCase();
-  const list = S.projects.filter(p => (UI.showArchived || !p.archived) &&
+  const list = visibleProjects().filter(p => (UI.showArchived || !p.archived) &&
     (!q || p.name.toLowerCase().includes(q) || (client(p.clientId)?.name || '').toLowerCase().includes(q))).sort(byName);
-  if (!list.length) return `<div class="empty"><p>${S.projects.length ? 'Keine passenden Projekte.' : 'Noch keine Projekte angelegt.'}</p></div>`;
+  if (!list.length) return `<div class="empty"><p>${visibleProjects().length ? 'Keine passenden Projekte.' : canSeeAllProjects() ? 'Noch keine Projekte angelegt.' : 'Ihnen ist noch kein Projekt zugeordnet. Projekte ordnet Ihnen Ihr Projektleiter zu.'}</p></div>`;
   const money = canSeeRates(), cloud = cloudOn(), admin = role().admin;
+  const teamNames = p => (p.memberIds || []).map(id => S.roles.find(r => r.id === id)?.name).filter(Boolean);
   return `<div class="tbl-wrap"><table class="tbl">
-    <thead><tr><th>Name</th><th class="hide-mobile">Kunde</th>${cloud ? '<th class="hide-mobile">Projektleiter</th>' : ''}<th class="num">${cloud ? 'Meine Zeit' : 'Erfasst'}</th>${money ? '<th class="num hide-mobile">Stundensatz</th>' : ''}<th></th></tr></thead>
+    <thead><tr><th>Name</th><th class="hide-mobile">Kunde</th>${cloud ? '<th class="hide-mobile">Projektleiter</th><th class="hide-mobile">Team</th>' : ''}<th class="num">${cloud ? 'Meine Zeit' : 'Erfasst'}</th>${money ? '<th class="num hide-mobile">Stundensatz</th>' : ''}<th></th></tr></thead>
     <tbody>${list.map(p => {
-      const es = S.entries.filter(e => e.projectId === p.id), edit = canEditProject(p);
+      const es = S.entries.filter(e => e.projectId === p.id), edit = canEditProject(p), team = cloud && canEditTeam(p), tn = teamNames(p);
       return `<tr class="${p.archived ? 'archived' : ''}">
-        <td><button class="name-cell" ${edit ? `data-action="edit-project" data-id="${p.id}"` : ''}><span class="dot" style="background:${p.color}"></span>${esc(p.name)}${p.archived ? ' <span class="chip">archiviert</span>' : ''}${money && p.billable && p.rate == null ? ' <span class="chip warn">Stundensatz fehlt</span>' : ''}${cloud && admin && !p.listId ? ' <span class="chip">Rechte ausstehend</span>' : ''}</button></td>
+        <td><button class="name-cell" ${edit ? `data-action="edit-project" data-id="${p.id}"` : team ? `data-action="edit-team" data-id="${p.id}"` : ''}><span class="dot" style="background:${p.color}"></span>${esc(p.name)}${p.archived ? ` <span class="chip lock-chip">${ic('lock')} abgeschlossen</span>` : ''}${money && p.billable && p.rate == null ? ' <span class="chip warn">Stundensatz fehlt</span>' : ''}${cloud && admin && !p.listId ? ' <span class="chip">Rechte ausstehend</span>' : ''}</button></td>
         <td class="hide-mobile">${esc(client(p.clientId)?.name || '–')}</td>
-        ${cloud ? `<td class="hide-mobile">${p.leadName ? esc(p.leadName) : '<span class="muted">–</span>'}</td>` : ''}
+        ${cloud ? `<td class="hide-mobile">${p.leadName ? esc(p.leadName) : '<span class="warn-text">fehlt</span>'}</td>
+          <td class="hide-mobile" title="${esc(tn.join(', '))}">${tn.length ? tn.length + (tn.length === 1 ? ' Person' : ' Personen') : '<span class="muted">–</span>'}</td>` : ''}
         <td class="num">${fmtDur(sum(es))}</td>
         ${money ? `<td class="num hide-mobile">${p.rate != null ? fmtMoney(Number(p.rate)) : p.billable ? '<span class="warn-text">fehlt</span>' : '<span class="muted">–</span>'}</td>` : ''}
-        <td class="act">${edit ? `
-          <button class="icon-btn" data-action="edit-project" data-id="${p.id}" title="Bearbeiten">${ic('edit')}</button>
-          <button class="icon-btn" data-action="archive-project" data-id="${p.id}" title="${p.archived ? 'Wiederherstellen' : 'Archivieren'}">${ic('archive')}</button>
-          <button class="icon-btn" data-action="delete-project" data-id="${p.id}" title="Löschen">${ic('trash')}</button>` : ''}
+        <td class="act">
+          ${team ? `<button class="icon-btn" data-action="edit-team" data-id="${p.id}" title="Team zuordnen">${ic('users')}</button>` : ''}
+          ${edit ? `<button class="icon-btn" data-action="edit-project" data-id="${p.id}" title="Bearbeiten">${ic('edit')}</button>
+          <button class="icon-btn" data-action="archive-project" data-id="${p.id}" title="${p.archived ? 'Projekt wieder öffnen' : 'Projekt abschließen (archivieren)'}">${ic(p.archived ? 'upload' : 'archive')}</button>` : ''}
+          ${admin || !cloud ? `<button class="icon-btn" data-action="delete-project" data-id="${p.id}" title="Löschen">${ic('trash')}</button>` : ''}
         </td></tr>`;
     }).join('')}</tbody></table></div>`;
+}
+
+// Team eines Projekts: Projektleiter (seine Projekte) und Administratoren ordnen Mitarbeiter zu
+function openTeamModal(id) {
+  const p = proj(id);
+  if (!p || !canEditTeam(p)) return toast('Keine Berechtigung, das Team dieses Projekts zu ändern');
+  const people = S.roles.filter(r => r.active && (r.roles.includes('ma') || r.roles.includes('pl')) && r.id !== p.leadId).sort(byName);
+  const sel = new Set(p.memberIds || []);
+  openModal(`<h2>Team: ${esc(p.name)}</h2>
+    <p class="muted" style="margin-top:-8px">Projektleiter: <b>${esc(p.leadName || '–')}</b>. Angehakte Personen sehen dieses Projekt und können darauf Zeiten erfassen.</p>
+    <input type="search" id="tm-q" class="help-search" placeholder="Name suchen …" autocomplete="off">
+    <div class="us-res" id="tm-list">${people.map(r => `<label class="pp-check" data-name="${esc(r.name.toLowerCase())}"><input type="checkbox" data-uid="${r.id}" ${sel.has(r.id) ? 'checked' : ''}> ${esc(r.name)} <span class="muted small">${r.roles.includes('pl') ? 'Projektleiter' : ''}</span></label>`).join('')
+      || '<p class="muted">Noch keine Mitarbeiter unter „Benutzer & Rollen“ eingetragen.</p>'}</div>
+    <div class="modal-actions"><span class="grow"></span>
+      <button class="btn ghost" data-action="close-modal">Abbrechen</button>
+      <button class="btn primary" id="tm-save">Speichern</button></div>`, m => {
+    $('#tm-q', m).addEventListener('input', ev => {
+      const t = ev.target.value.trim().toLowerCase();
+      $$('[data-name]', m).forEach(l => { l.hidden = t && !l.dataset.name.includes(t); });
+    });
+    $('#tm-save', m).addEventListener('click', () => {
+      p.memberIds = $$('[data-uid]', m).filter(c => c.checked).map(c => c.dataset.uid).sort();
+      save(); closeModal(); render(); toast(`Team gespeichert (${p.memberIds.length} ${p.memberIds.length === 1 ? 'Person' : 'Personen'})`);
+    });
+  });
 }
 function afterProjects() {
   $('#proj-q').addEventListener('input', ev => { UI.projQ = ev.target.value; $('#proj-list').innerHTML = projectTableHTML(); });
@@ -886,14 +949,14 @@ function openProjectModal(id, opts = {}) {
   const p = id ? proj(id) : null;
   if (p ? !canEditProject(p) : !canCreateProject()) return toast('Keine Berechtigung, dieses Projekt zu bearbeiten');
   const cloud = cloudOn(), admin = role().admin;
-  const me = S.roles.find(r => r.id === meId());
-  const d = p ? { ...p } : { name: opts.name || '', clientId: null, color: COLORS[S.projects.length % COLORS.length], rate: null, billable: true, leadId: cloud && !admin ? meId() : null };
+  const d = p ? { ...p } : { name: opts.name || '', clientId: null, color: COLORS[S.projects.length % COLORS.length], rate: null, billable: true, leadId: null, memberIds: [] };
   const leads = S.roles.filter(r => r.active && r.roles.includes('pl')).sort(byName);
+  // Projektleiter ordnet nur der Administrator zu
   const leadField = !cloud ? '' : admin
     ? `<label class="field"><span>Projektleiter</span><select name="leadId"><option value="">– kein Projektleiter –</option>
         ${leads.map(r => `<option value="${r.id}" ${r.id === d.leadId ? 'selected' : ''}>${esc(r.name)}</option>`).join('')}</select></label>
        ${leads.length ? '' : '<p class="muted" style="margin-top:-8px">Noch niemand hat die Rolle Projektleiter (Benutzer & Rollen).</p>'}`
-    : `<div class="field"><span>Projektleiter</span><div class="select-btn">${esc(d.leadName || me?.name || S.settings.userName)}</div></div>`;
+    : `<div class="field"><span>Projektleiter</span><div class="select-btn">${d.leadName ? esc(d.leadName) : '<span class="muted">wird vom Administrator zugeordnet</span>'}</div></div>`;
   openModal(`<h2>${p ? 'Projekt bearbeiten' : 'Neues Projekt'}</h2><form id="pf" novalidate>
     <label class="field"><span>Projektname</span><input name="pname" value="${esc(d.name)}" autocomplete="off"></label>
     <label class="field"><span>Kunde</span><select name="clientId"><option value="">Ohne Kunde</option>
@@ -922,8 +985,9 @@ function openProjectModal(id, opts = {}) {
         rate: rateStr === '' ? null : Number(rateStr), billable: el.billable.checked
       };
       if (cloud) {
-        vals.leadId = admin ? (el.leadId.value || null) : d.leadId;
-        vals.leadName = S.roles.find(r => r.id === vals.leadId)?.name || (vals.leadId === meId() ? S.settings.userName : d.leadName || '');
+        vals.leadId = admin ? (el.leadId.value || null) : d.leadId || null;
+        vals.leadName = vals.leadId ? (S.roles.find(r => r.id === vals.leadId)?.name || d.leadName || '') : '';
+        vals.memberIds = (d.memberIds || []).filter(id => id !== vals.leadId);
       }
       if (!vals.name) return fail('Bitte einen Projektnamen eingeben.', el.pname);
       if (vals.rate != null && (isNaN(vals.rate) || vals.rate < 0)) return fail('Bitte einen gültigen Stundensatz eingeben.', el.rate);
@@ -987,10 +1051,10 @@ function viewUsers() {
     ${teamsCardHTML()}
     <div class="card"><div class="card-head">Was die Rollen dürfen</div><div class="card-body">
       <ul class="help-list">
-        <li><b>Administrator:</b> alles, auch Benutzer & Rollen; sieht alle Zeiten und Stundensätze.</li>
-        <li><b>Projektleiter:</b> legt eigene Projekte an und pflegt sie (inkl. Stundensatz); sieht alle Zeiten der Projekte, deren Projektleiter er ist.</li>
-        <li><b>Mitarbeiter:</b> erfasst eigene Zeiten und sieht nur diese; keine Stundensätze und Beträge.</li>
-        <li><b>Buchhaltung:</b> sieht alle Projekte und alle Zeiten mit Stundensätzen und Beträgen (nur lesend).</li>
+        <li><b>Administrator:</b> alles, auch Benutzer & Rollen und Tags; legt Projekte an und <b>ordnet die Projektleiter zu</b>; sieht alle Zeiten und Stundensätze.</li>
+        <li><b>Projektleiter:</b> sieht nur seine Projekte, <b>ordnet diesen Mitarbeiter zu</b> (Team) und sieht alle Zeiten darauf; legt keine Projekte an.</li>
+        <li><b>Mitarbeiter:</b> sieht nur Projekte, denen er zugeordnet ist; erfasst eigene Zeiten und sieht nur diese; keine Stundensätze und Beträge.</li>
+        <li><b>Buchhaltung:</b> legt Projekte und Kunden an und pflegt Stundensätze; sieht alle Projekte und alle Zeiten mit Beträgen.</li>
         <li><b>Aktiv</b> abwählen, wenn jemand ausscheidet: Zugriff wird entzogen, erfasste Zeiten bleiben erhalten.</li>
       </ul>
       <p class="muted" style="margin-bottom:0">Eine Person kann mehrere Rollen haben. Wer selbst Zeiten erfasst, braucht zusätzlich „Mitarbeiter“ (Projektleiter können immer erfassen).</p>
@@ -1227,14 +1291,14 @@ const ACTIONS = {
   'discard': () => { if (confirm('Laufenden Timer verwerfen?')) { S.running = null; save(); render(); } },
   'add-manual': addManual,
   'set-mode': el => { S.settings.trackMode = el.dataset.mode; save(); render(); },
-  'continue': el => { const e = S.entries.find(x => x.id === el.dataset.id); if (e) { startTimer(e); window.scrollTo({ top: 0, behavior: 'smooth' }); } },
-  'edit-entry': el => openEntryModal(el.dataset.id),
-  'entry-menu': el => openEntryMenu(el, el.dataset.id),
-  'delete-entry': el => { closeModal(); deleteEntry(el.dataset.id); },
+  'continue': el => { const e = S.entries.find(x => x.id === el.dataset.id); if (isLocked(e)) return lockedToast(); if (e) { startTimer(e); window.scrollTo({ top: 0, behavior: 'smooth' }); } },
+  'edit-entry': el => (isLocked(S.entries.find(x => x.id === el.dataset.id)) ? lockedToast() : openEntryModal(el.dataset.id)),
+  'entry-menu': el => (isLocked(S.entries.find(x => x.id === el.dataset.id)) ? lockedToast() : openEntryMenu(el, el.dataset.id)),
+  'delete-entry': el => { closeModal(); if (isLocked(S.entries.find(x => x.id === el.dataset.id))) return lockedToast(); deleteEntry(el.dataset.id); },
   'save-entry': saveEntryModal,
-  'pick-project': el => openProjectPicker(el, el.dataset.target),
-  'pick-tags': el => openTagPicker(el, el.dataset.target),
-  'toggle-billable': el => applyTarget(el.dataset.target, o => { o.billable = !o.billable; }),
+  'pick-project': el => (entryLocked(el.dataset.target) ? lockedToast() : openProjectPicker(el, el.dataset.target)),
+  'pick-tags': el => (entryLocked(el.dataset.target) ? lockedToast() : openTagPicker(el, el.dataset.target)),
+  'toggle-billable': el => (entryLocked(el.dataset.target) ? lockedToast() : applyTarget(el.dataset.target, o => { o.billable = !o.billable; })),
   'load-more': () => { UI.weeksShown += 4; render(); },
   'close-modal': closeModal,
   'rep-shift': el => { UI.report.offset += Number(el.dataset.d); render(); },
@@ -1242,10 +1306,19 @@ const ACTIONS = {
   'rep-print': () => window.print(),
   'new-project': () => openProjectModal(null),
   'edit-project': el => openProjectModal(el.dataset.id),
-  'archive-project': el => { const p = proj(el.dataset.id); if (!canEditProject(p)) return; p.archived = !p.archived; save(); render(); toast(p.archived ? 'Projekt archiviert' : 'Projekt wiederhergestellt'); },
+  'archive-project': el => {
+    const p = proj(el.dataset.id);
+    if (!canEditProject(p)) return;
+    const msg = p.archived
+      ? `Projekt „${p.name}“ wieder öffnen?\n\nEs erscheint wieder in der Auswahl, und auf das Projekt können wieder Zeiten erfasst werden.`
+      : `Projekt „${p.name}“ abschließen?\n\n• Das Projekt wird archiviert und verschwindet aus der Auswahl.\n• Es können keine Zeiten mehr darauf erfasst oder geändert werden.\n• Alle Zeiten bleiben in den Berichten erhalten.\n\nWieder öffnen ist jederzeit möglich.`;
+    if (!confirm(msg)) return;
+    p.archived = !p.archived; save(); render();
+    toast(p.archived ? 'Projekt abgeschlossen und archiviert' : 'Projekt wieder geöffnet');
+  },
   'delete-project': el => {
     const p = proj(el.dataset.id), n = S.entries.filter(e => e.projectId === p.id).length;
-    if (!canEditProject(p)) return;
+    if (cloudOn() && !role().admin) return; // löschen nur Administratoren
     if (!confirm(`Projekt „${p.name}“ löschen?${n ? `\n${n} Einträge bleiben erhalten, verlieren aber die Projektzuordnung.` : ''}`)) return;
     S.projects = S.projects.filter(x => x !== p);
     S.entries.forEach(e => { if (e.projectId === p.id) e.projectId = null; });
@@ -1265,6 +1338,7 @@ const ACTIONS = {
     save(); render();
   },
   'user-add': () => openUserAdd(),
+  'edit-team': el => openTeamModal(el.dataset.id),
   'teams-package': () => downloadTeamsPackage(),
   'perm-apply': () => { Cloud.reconcile(); render(); },
   'cloud-login': () => Cloud.login(),

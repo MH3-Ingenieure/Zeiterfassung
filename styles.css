@@ -40,7 +40,15 @@ a { color: var(--accent); }
   padding: var(--safe-t) 16px 0; background: var(--surface); border-bottom: 1px solid var(--border);
   position: sticky; top: 0; z-index: 20;
 }
-.brand { display: flex; align-items: center; gap: 10px; font-weight: 600; font-size: 17px; }
+.brand { display: flex; align-items: center; gap: 12px; font-weight: 600; font-size: 17px; color: var(--text); text-decoration: none; min-width: 0; }
+.brand-logo img { display: block; height: 30px; width: auto; }
+.brand-sep { width: 1px; height: 26px; background: var(--border); }
+.brand-title { white-space: nowrap; }
+.login-brand { display: block; height: 44px; width: auto; margin: 0 auto 6px; }
+@media (max-width: 760px) { .brand-logo img { height: 24px; } .brand { gap: 9px; font-size: 16px; } .brand-sep { height: 22px; } }
+/* Firmenkopf in Berichten / PDF */
+.print-head, .print-inline { display: none; }
+@media print { .print-inline { display: inline; } }
 .logo { width: 30px; height: 30px; border-radius: 8px; background: var(--accent); color: #fff; display: grid; place-items: center; }
 .topbar-right { margin-left: auto; display: flex; align-items: center; gap: 14px; }
 .user-btn { display: inline-flex; align-items: center; gap: 8px; height: 38px; padding: 0 10px 0 4px; border-radius: 19px; }
@@ -375,11 +383,31 @@ table.tbl { width: 100%; border-collapse: collapse; }
   #toast { bottom: calc(76px + var(--safe-b)); }
 }
 
+.entry.locked { opacity: .7; }
+.lock-chip { display: inline-flex; align-items: center; gap: 3px; }
+.lock-chip .ic { width: 11px; height: 11px; }
+
 @media print {
-  .topbar, .sidebar, .bottombar, .no-print, #toast { display: none !important; }
+  @page { size: A4; margin: 14mm 12mm 16mm; }
+  :root { --bg: #fff; --surface: #fff; --surface-2: #f4f6f8; --border: #cfd6dc; --text: #111; --muted: #666; --muted-2: #444; }
+  * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  .topbar, .sidebar, .bottombar, .no-print, #toast, .nav-scrim, #sync-status, .rep-note { display: none !important; }
   .print-only { display: block; margin-bottom: 12px; }
+  .print-head { display: flex; justify-content: space-between; align-items: flex-end; gap: 20px; padding-bottom: 10px; margin-bottom: 14px; border-bottom: 2px solid #1c1c1a; }
+  .ph-logo { height: 38px; width: auto; }
+  .ph-meta { text-align: right; font-size: 11px; line-height: 1.5; color: #333; }
+  .ph-title { font-size: 18px; font-weight: 700; color: #111; margin-bottom: 2px; }
+  .ph-date { color: #777; }
+  .page-head { display: none; }
   #app { display: block; }
   main { padding: 0; }
-  body { background: #fff; color: #000; }
-  .card { break-inside: avoid; border-color: #ccc; }
+  body { background: #fff; color: #000; font-size: 11px; }
+  .card { break-inside: avoid; border-color: #ccc; box-shadow: none; }
+  .tbl td, .tbl th { padding: 5px 8px; }
+  .tbl thead { display: table-header-group; }
+  .tbl tr { break-inside: avoid; }
+  .hide-mobile { display: table-cell !important; }
+  .stats { grid-template-columns: repeat(3, 1fr) !important; }
+  .stats.two { grid-template-columns: repeat(2, 1fr) !important; }
+  .breakdown { grid-template-columns: 180px 1fr !important; }
 }
