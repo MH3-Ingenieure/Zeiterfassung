@@ -746,7 +746,7 @@ function viewReports() {
   const isTeam = R.scope === 'team';
   if (!isTeam && R.groupBy === 'user') R.groupBy = 'project';
   const src = reportSource(from, to), list = reportEntries(from, to, src);
-  const users = isTeam ? [...new Map(src.list.map(e => [e.userId, e.userName])).entries()].sort((a, b) => String(a[1]).localeCompare(String(b[1]), 'de')) : [];
+  const users = reportPeople(isTeam ? src.list : []);
   const note = src.status === 'loading' ? '<div class="card rep-note">Lade Daten aller Mitarbeiter aus SharePoint …</div>'
     : src.status === 'error' ? `<div class="card rep-note err">Teamdaten konnten nicht geladen werden: ${esc(src.error)}</div>` : '';
   const total = sum(list), billMs = sum(list.filter(e => e.billable)), amount = list.reduce((a, e) => a + amountOf(e), 0);
@@ -762,9 +762,12 @@ function viewReports() {
     ${printHeadHTML(label, from, to, isTeam, users)}
     <div class="card rep-bar no-print">
       <div class="rep-row">
-        ${teamOk ? `<select name="scope" data-change="rep">${opt('me', 'Meine Zeiten', R.scope)}${opt('team', teamLabel, R.scope)}</select>` : ''}
-        ${isTeam ? `<select name="userId" data-change="rep">${opt('', 'Alle Personen', R.userId)}${users.map(([id, n]) => opt(id, n, R.userId)).join('')}</select>
-          <button class="icon-btn" data-action="team-refresh" title="Teamdaten neu laden">⟳</button>` : ''}
+        ${teamOk ? `<label class="rep-person"><span>Person</span><select data-change="rep-person">
+            ${opt('me', 'Nur ich (' + (S.settings.userName || 'eigene Zeiten') + ')', !isTeam ? 'me' : '')}
+            ${opt('team', teamLabel + ' (alle zusammen)', isTeam && !R.userId ? 'team' : '')}
+            <optgroup label="Einzelne Person">${users.filter(([id]) => id !== meId()).map(([id, n]) => opt('u:' + id, n, isTeam && R.userId === id ? 'u:' + id : '')).join('')}</optgroup>
+          </select></label>
+          ${isTeam ? '<button class="icon-btn" data-action="team-refresh" title="Daten neu laden">⟳</button>' : ''}` : ''}
         <select name="range" data-change="rep">${[['day', 'Tag'], ['week', 'Woche'], ['month', 'Monat'], ['year', 'Jahr'], ['custom', 'Zeitraum']].map(([v, t]) => opt(v, t, R.range)).join('')}</select>
         ${R.range === 'custom'
           ? `<input type="date" name="from" data-change="rep" value="${R.from}"><span>–</span><input type="date" name="to" data-change="rep" value="${R.to}">`
@@ -821,6 +824,17 @@ function viewReports() {
       </table></div>
     </div>
   </div>`;
+}
+
+// Personen für die Auswahl im Bericht: Administratoren/Buchhaltung alle aktiven Mitarbeiter,
+// Projektleiter das Team ihrer Projekte – jeweils ergänzt um Personen, die im Zeitraum Zeiten haben
+function reportPeople(entries = []) {
+  const r = role(), m = new Map();
+  const add = (id, name) => { if (id && !m.has(id)) m.set(id, name || '?'); };
+  if (r.admin || r.bh) S.roles.filter(u => u.active && (u.roles.includes('ma') || u.roles.includes('pl'))).forEach(u => add(u.id, u.name));
+  else if (r.pl) S.projects.filter(p => p.leadId === meId()).forEach(p => (p.memberIds || []).forEach(id => add(id, S.roles.find(u => u.id === id)?.name)));
+  entries.forEach(e => add(e.userId, e.userName));
+  return [...m.entries()].sort((a, b) => String(a[1]).localeCompare(String(b[1]), 'de'));
 }
 
 // Firmenkopf für Druck / PDF: Logo, Titel, Zeitraum, gewählte Filter, Erstellungsdatum
@@ -1374,10 +1388,17 @@ document.addEventListener('change', ev => {
     if (el.name === 'range') UI.report.offset = 0;
     if (el.name === 'scope') { UI.report.userId = ''; UI.report.groupBy = el.value === 'team' ? 'user' : 'project'; }
     render();
+  } else if (k === 'rep-person') {
+    const v = el.value, R = UI.report, wasTeam = R.scope === 'team';
+    if (v === 'me') { R.scope = 'me'; R.userId = ''; }
+    else { R.scope = 'team'; R.userId = v.startsWith('u:') ? v.slice(2) : ''; }
+    if (R.scope === 'team' && !wasTeam) R.groupBy = R.userId ? 'project' : 'user';
+    if (R.scope === 'me' && R.groupBy === 'user') R.groupBy = 'project';
+    if (R.userId && R.groupBy === 'user') R.groupBy = 'project'; // eine Person → nach Projekten aufschlüsseln
+    render();
   } else if (k === 'proj-arch') { UI.showArchived = el.checked; render(); }
   else if (k === 'role') setRole(el.dataset.id, el.dataset.role, el.checked);
-  else if (k === 'role-active') setActive(el.dataset.id, el.checked);
-  else if (k === 'import') { importJSON(el.files[0]); el.value = ''; }
+  else if (k === 'role-active') setActive(el.dataset.id, el.checked);  else if (k === 'import') { importJSON(el.files[0]); el.value = ''; }
 });
 
 document.addEventListener('submit', ev => {

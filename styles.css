@@ -269,6 +269,9 @@ table.tbl { width: 100%; border-collapse: collapse; }
 .rep-row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
 .rep-bar select, .rep-bar input { height: 36px; border: 1px solid var(--border); border-radius: 4px; background: var(--surface); padding: 0 8px; max-width: 100%; }
 .range-nav { display: flex; align-items: center; gap: 2px; }
+.rep-person { display: inline-flex; align-items: center; gap: 6px; font-weight: 600; }
+.rep-person select { min-width: 220px; font-weight: 400; }
+@media (max-width: 760px) { .rep-person { flex: 1 1 100%; } .rep-person select { flex: 1; min-width: 0; } }
 .range-label { font-weight: 600; min-width: 170px; text-align: center; }
 .stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-bottom: 12px; }
 .stat { padding: 14px 16px; }

@@ -145,9 +145,14 @@ const HELP = [
     roles: ['admin', 'pl', 'bh'], title: 'Team-Auswertung (Projektleiter, Buchhaltung, Administratoren)', body: `
     <ol>
       <li>Links auf <b>Berichte</b>.</li>
-      <li>Oben statt „Meine Zeiten“ wählen: <b>„Team meiner Projekte“</b> (Projektleiter) bzw. <b>„Alle Mitarbeiter“</b> (Buchhaltung, Administratoren).</li>
-      <li>Optional eine Person auswählen; mit ⟳ die Daten neu laden.</li>
-      <li>Aufschlüsselung „nach Mitarbeiter“ zeigt die Stunden je Person; der Einzelnachweis enthält Name, Kommentar, Projekt und Betrag.</li>
+      <li>Oben im Feld <b>„Person“</b> wählen:
+        <ul>
+          <li><b>Nur ich</b> – die eigenen Zeiten,</li>
+          <li><b>Alle Mitarbeiter</b> (Buchhaltung, Administratoren) bzw. <b>Team meiner Projekte</b> (Projektleiter) – alle zusammen,</li>
+          <li>oder eine <b>einzelne Person</b> aus der Liste – z. B. um zu sehen, wie ein Mitarbeiter auf mehrere Projekte verteilt ist.</li>
+        </ul></li>
+      <li>Zeitraum wählen – für einen beliebigen Zeitraum <b>„Zeitraum“</b> und Von/Bis-Datum eintragen. Mit ⟳ die Daten neu laden.</li>
+      <li>Bei einer einzelnen Person schlüsselt die App automatisch <b>nach Projekt</b> auf; bei allen zusammen <b>nach Mitarbeiter</b>. Der Einzelnachweis enthält Name, Kommentar, Projekt und Betrag.</li>
       <li>Export über <b>CSV</b> (Excel) oder <b>PDF / Drucken</b>.</li>
     </ol>
     <p>Beträge = Stunden × Stundensatz des Projekts, nur für abrechenbare Zeiten.</p>`
