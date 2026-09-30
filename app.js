@@ -130,7 +130,8 @@ const P = {
   archive: '<path d="M3 4h18v4H3zM5 8v12h14V8M10 12h4"/>',
   shield: '<path d="M12 3l8 3v6c0 4.5-3.4 8.3-8 9-4.6-.7-8-4.5-8-9V6z"/><path d="M9 12l2 2 4-4"/>',
   help: '<circle cx="12" cy="12" r="9"/><path d="M9.5 9.5a2.5 2.5 0 1 1 3.5 2.3c-.6.3-1 .9-1 1.6v.6M12 17h.01"/>',
-  lock: '<rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/>'
+  lock: '<rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/>',
+  mic: '<rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3M9 21h6"/>'
 };
 const ic = n => `<svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${P[n]}</svg>`;
 
@@ -228,7 +229,8 @@ function timerBarHTML() {
   const manual = S.settings.trackMode !== 'timer' && !r;
   const m = UI.manual;
   return `<div class="card entry-form ${r ? 'running' : ''}">
-    <div class="ef-title">${r ? `${ic('clock')} Timer läuft` : manual ? 'Zeit eintragen' : `${ic('clock')} Zeit mit Timer erfassen`}</div>
+    <div class="ef-title">${r ? `${ic('clock')} Timer läuft` : manual ? 'Zeit eintragen' : `${ic('clock')} Zeit mit Timer erfassen`}
+      ${r ? '' : `<button class="btn ghost small ef-dict" data-action="dictate">${ic('mic')} diktieren</button>`}</div>
     <div class="ef-field">
       <span class="ef-label">Projekt</span>
       <button class="ef-proj" data-action="pick-project" data-target="timer">${projLabel(d.projectId, 'Projekt wählen')}<span class="ef-change">${d.projectId ? 'ändern' : ''}</span></button>
@@ -934,7 +936,8 @@ const canTrack = () => { const r = role(); return !!(r.local || r.admin || r.ma 
 function viewProjects() {
   return `<div class="page">
     <div class="page-head"><h1>${canSeeAllProjects() ? 'Projekte' : 'Meine Projekte'}</h1>${canCreateProject() ? `<button class="btn primary" data-action="new-project">${ic('plus')} NEUES PROJEKT</button>` : ''}</div>
-    ${canTrack() ? '<p class="page-hint">Auf einen <b>Projektnamen</b> klicken, um Zeiten für dieses Projekt einzutragen.</p>' : ''}
+    ${canTrack() ? `<div class="dz-start"><button class="btn primary dz-btn" data-action="dictate">${ic('mic')} Zeit diktieren</button>
+      <span class="page-hint">oder auf einen <b>Projektnamen</b> klicken, um Zeiten für dieses Projekt einzutragen.</span></div>` : ''}
     <div class="card">
       <div class="toolbar">
         <input type="search" id="proj-q" placeholder="Projekt suchen…" value="${esc(UI.projQ)}">
@@ -1397,6 +1400,7 @@ const ACTIONS = {
   'user-add': () => openUserAdd(),
   'edit-team': el => openTeamModal(el.dataset.id),
   'preview-end': () => setPreview(null),
+  'dictate': () => openDictate(),
   'open-project': el => { // Projekt aus der Übersicht → Zeiterfassung mit vorgewähltem Projekt
     const p = proj(el.dataset.id);
     if (!p) return;

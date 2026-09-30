@@ -28,6 +28,21 @@ const HELP = [
     <p>Das Projekt bleibt danach gewählt und der nächste Beginn ist mit dem letzten Ende vorbelegt – so tragen Sie mehrere Tätigkeiten hintereinander schnell ein. Am PC fügt <b>Strg + Enter</b> im Kommentarfeld den Eintrag hinzu.</p>`
   },
   {
+    roles: 'all', title: 'Zeit diktieren (Spracheingabe)', body: `
+    <ol>
+      <li>Auf der Startseite <b>„Zeit diktieren“</b> tippen (oder im Eingabefenster auf <b>„diktieren“</b>) – ein Projekt muss vorher nicht geöffnet sein.</li>
+      <li>Das <b>Mikrofon</b> antippen und sprechen – oder auf dem iPhone die <b>Mikrofontaste der Tastatur</b> nutzen bzw. einfach tippen. Beispiele:
+        <ul>
+          <li>„Baustellenbegehung <i>Bürogebäude</i>, heute von 9 bis 12 Uhr“</li>
+          <li>„Gestern Baubesprechung <i>Brandschutzkonzept</i> von halb neun bis viertel nach elf“</li>
+          <li>„Protokoll <i>Pumpwerk</i> ab 14 Uhr 90 Minuten“</li>
+        </ul></li>
+      <li>Die App zeigt das Erkannte: <b>Projekt, Datum, Beginn, Ende, Tags, Kommentar</b>. Alles lässt sich korrigieren. Ist das Projekt nicht eindeutig, bietet sie Vorschläge an.</li>
+      <li><b>Speichern</b> tippen.</li>
+    </ol>
+    <p>Tipps: Ein markantes Wort aus dem <b>Projektnamen</b> mitsprechen. Datum ohne Angabe = heute. Erkannt werden u. a. heute, gestern, Wochentage (letzter Montag …) und Daten wie „12.10.“. Nur eine Dauer („2 Stunden“)? Dann wird der Beginn angenommen (Ende des letzten Eintrags bzw. 8 Uhr) – bitte prüfen.</p>`
+  },
+  {
     roles: 'all', title: 'Timer (optional)', body: `
     <ol>
       <li>Im Eingabefenster unten auf <b>„stattdessen Timer starten“</b> tippen.</li>
