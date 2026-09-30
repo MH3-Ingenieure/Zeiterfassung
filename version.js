@@ -5,10 +5,24 @@
    CHANGELOG.md und den Cache-Namen in sw.js mitziehen.
    Nummerierung: Hauptversion.Funktion.Korrektur (z. B. 1.9.1)
    ===================================================================== */
-const APP_VERSION = '1.9.1';
+const APP_VERSION = '1.9.3';
 const APP_RELEASE_DATE = '30.09.2026';
 
 const CHANGELOG = [
+  {
+    v: '1.9.3', date: '30.09.2026', title: 'Diktieren auf dem iPhone repariert', items: [
+      'Auf iPhone/iPad und in Teams wird die hängende Browser-Spracherkennung nicht mehr verwendet; stattdessen Diktat über die Mikrofontaste der iPhone-Tastatur (Anleitung direkt im Fenster).',
+      'Sicherung für den Mikrofon-Knopf auf anderen Geräten: bricht nach 12 s ohne Sprache ab statt einzufrieren; Abbrechen beendet die Aufnahme.',
+      'Auswertung erst nach kurzer Pause statt bei jedem Zeichen (flüssiger beim Diktieren).'
+    ]
+  },
+  {
+    v: '1.9.2', date: '30.09.2026', title: 'Mikrofon in Teams', items: [
+      'Teams-App-Paket meldet die Mikrofon-Berechtigung an (devicePermissions „media“) – neues Paket im Teams Admin Center hochladen.',
+      'Teams-Paket trägt jetzt die App-Versionsnummer (steigt mit jedem Release).',
+      'Diktierfenster: Ist das Mikrofon nicht erlaubt, erklärt die App den Ausweichweg über die Diktierfunktion des Geräts (Windows-Taste + H, Mac-Diktat, iPhone-Tastatur).'
+    ]
+  },
   {
     v: '1.9.1', date: '30.09.2026', title: 'Änderungsprotokoll und Versionsanzeige', items: [
       'Release-Bezeichnung und Datum unter Einstellungen → „Über diese App“, im Namensmenü und in der Hilfe.',

@@ -170,8 +170,23 @@ function parseDictation(text) {
 }
 
 /* ---------- Dialog ---------- */
+// Diktierfunktion des Geräts – funktioniert in jedem Textfeld, auch wenn die App kein Mikrofon nutzen darf
+function dzOsHint() {
+  const ua = navigator.userAgent;
+  if (dzIsIOS()) return 'Ins Textfeld tippen, dann unten auf der Tastatur das <b>Mikrofon 🎤</b> antippen und sprechen. Zum Beenden erneut auf das Mikrofon bzw. auf „Fertig“ tippen.';
+  if (/Android/.test(ua)) return 'Ins Textfeld tippen und auf der Tastatur das <b>Mikrofon</b> nutzen.';
+  if (/Mac/.test(ua)) return 'Ins Textfeld klicken und die <b>Diktierfunktion des Mac</b> starten: <b>zweimal die Fn- bzw. Globus-Taste</b> drücken (oder Menü Bearbeiten → Diktat starten).';
+  if (/Windows/.test(ua)) return 'Ins Textfeld klicken und die <b>Windows-Spracheingabe</b> starten: <b>Windows-Taste + H</b>.';
+  return 'Ins Textfeld klicken und die Diktierfunktion des Geräts nutzen.';
+}
+const dzInTeams = () => !!window.Cloud?.inTeams?.();
+const dzIsIOS = () => /iPhone|iPad|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+// Browser-Spracherkennung nur dort, wo sie zuverlässig läuft. Auf iPhone/iPad (Home-Bildschirm-App,
+// Teams) hängt sie sich auf → dort die Diktierfunktion der Tastatur verwenden.
+const dzSpeech = () => (dzIsIOS() || dzInTeams() ? null : (window.SpeechRecognition || window.webkitSpeechRecognition || null));
+
 function openDictate() {
-  const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+  const SR = dzSpeech();
   const ex = visibleProjects().find(p => !p.archived)?.name || 'Projektname';
   let res = null, rec = null, listening = false;
   openModal(`<h2>${ic('mic')} Zeit diktieren</h2>
@@ -180,7 +195,7 @@ function openDictate() {
       <textarea id="dz-text" class="ef-comment" rows="3" placeholder="Tätigkeit, Projekt, Tag, von … bis …"></textarea>
       ${SR ? `<button type="button" class="dz-mic" id="dz-mic" title="Spracheingabe starten">${ic('mic')}</button>` : ''}
     </div>
-    <p class="dz-hint muted small">${SR ? 'Mikrofon antippen und sprechen – oder' : 'Tipp:'} auf dem iPhone die <b>Mikrofontaste der Tastatur</b> nutzen.</p>
+    <p class="dz-hint muted small" id="dz-hint">${SR ? 'Mikrofon antippen und sprechen. Klappt das nicht: ' : ''}${dzOsHint()}</p>
     <div id="dz-result"></div>
     <div class="modal-actions"><span class="grow"></span>
       <button class="btn ghost" data-action="close-modal">Abbrechen</button>
@@ -215,7 +230,12 @@ function openDictate() {
       out.querySelectorAll('.dz-tag').forEach(b => b.addEventListener('click', () => b.classList.toggle('on')));
       sum();
     };
-    ta.addEventListener('input', draw);
+    // Auswerten erst, wenn kurz nichts Neues kommt (Diktat liefert Text stückweise)
+    let deb;
+    ta.addEventListener('input', () => { clearTimeout(deb); deb = setTimeout(draw, 250); });
+    ta.addEventListener('blur', () => { clearTimeout(deb); draw(); });
+    // Abbrechen: laufende Aufnahme sicher beenden
+    m.addEventListener('click', ev => { if (ev.target.closest('[data-action="close-modal"]')) { try { rec?.abort(); } catch { } } });
     ta.focus();
     if (SR) {
       const mic = $('#dz-mic', m);
@@ -223,9 +243,21 @@ function openDictate() {
         if (listening) { rec?.stop(); return; }
         rec = new SR(); rec.lang = 'de-DE'; rec.interimResults = true; rec.continuous = false;
         const base = ta.value ? ta.value.trim() + ' ' : '';
-        rec.onresult = ev => { let t = ''; for (const r of ev.results) t += r[0].transcript; ta.value = base + t; draw(); };
-        rec.onerror = ev => { toast(ev.error === 'not-allowed' ? 'Mikrofon nicht erlaubt – bitte in den Einstellungen freigeben oder die Tastatur-Mikrofontaste nutzen.' : 'Spracheingabe nicht möglich – bitte Tastatur-Mikrofontaste nutzen.'); };
-        rec.onend = () => { listening = false; mic.classList.remove('on'); };
+        // Sicherung: kommt 12 s lang nichts an, Aufnahme beenden statt hängen zu bleiben
+        let watchdog = setTimeout(() => { try { rec.abort(); } catch { } }, 12000);
+        const feed = () => { clearTimeout(watchdog); watchdog = setTimeout(() => { try { rec.stop(); } catch { } }, 4000); };
+        rec.onresult = ev => { let t = ''; for (const r of ev.results) t += r[0].transcript; ta.value = base + t; feed(); clearTimeout(deb); deb = setTimeout(draw, 150); };
+        rec.onerror = ev => {
+          if (ev.error === 'no-speech' || ev.error === 'aborted') return;
+          // Mikrofon nicht erlaubt / nicht verfügbar: Ausweichweg direkt im Fenster erklären
+          const denied = ev.error === 'not-allowed' || ev.error === 'service-not-allowed';
+          $('#dz-hint', m).innerHTML = `<span class="dz-miss">${denied ? 'Die App darf das Mikrofon hier nicht verwenden.' : 'Die Spracherkennung ist hier nicht verfügbar.'}</span><br>
+            So geht es trotzdem: ${dzOsHint()}
+            ${dzInTeams() ? '<br>In Teams: Zeiterfassung links mit Rechtsklick → <b>App-Berechtigungen</b> (bzw. „…“ → Berechtigungen) → <b>Medien/Mikrofon</b> erlauben. Oder <a href="' + location.origin + location.pathname + '" target="_blank" rel="noopener">im Browser öffnen</a>.' : denied ? '<br>Oder das Mikrofon in den Browser- bzw. Geräteeinstellungen für diese Seite erlauben.' : ''}`;
+          mic.hidden = !!denied;
+          ta.focus();
+        };
+        rec.onend = () => { clearTimeout(watchdog); listening = false; mic.classList.remove('on'); draw(); };
         try { rec.start(); listening = true; mic.classList.add('on'); } catch { toast('Spracheingabe nicht verfügbar'); }
       });
     }

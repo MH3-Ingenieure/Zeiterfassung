@@ -1177,7 +1177,7 @@ async function downloadTeamsPackage() {
     const base = appBaseUrl(), cfg = Cloud.config();
     const manifest = {
       $schema: 'https://developer.microsoft.com/en-us/json-schemas/teams/v1.17/MicrosoftTeams.schema.json',
-      manifestVersion: '1.17', version: '1.0.' + Math.floor(Date.now() / 86400000) % 60000,
+      manifestVersion: '1.17', version: APP_VERSION, // gleiche Nummer wie das App-Release (muss bei jedem neuen Paket steigen)
       id: await stableGuid('zeiterfassung-teams|' + cfg.clientId + '|' + base),
       developer: { name: 'Interne Zeiterfassung', websiteUrl: base, privacyUrl: base + 'anleitung.html', termsOfUseUrl: base + 'anleitung.html' },
       name: { short: 'Zeiterfassung', full: 'Zeiterfassung – Stundenreporting' },
@@ -1186,6 +1186,7 @@ async function downloadTeamsPackage() {
       accentColor: '#03A9F4',
       staticTabs: [{ entityId: 'zeiterfassung', name: 'Zeiterfassung', contentUrl: base + '?teams=1#/projects', websiteUrl: base, scopes: ['personal'] }],
       permissions: ['identity'],
+      devicePermissions: ['media'], // Mikrofon für „Zeit diktieren“ in Teams
       validDomains: [location.host]
     };
     const color = new Uint8Array(await (await fetch('icons/icon-192.png', { cache: 'no-store' })).arrayBuffer());

@@ -31,7 +31,13 @@ const HELP = [
     roles: 'all', title: 'Zeit diktieren (Spracheingabe)', body: `
     <ol>
       <li>Auf der Startseite <b>„Zeit diktieren“</b> tippen (oder im Eingabefenster auf <b>„diktieren“</b>) – ein Projekt muss vorher nicht geöffnet sein.</li>
-      <li>Das <b>Mikrofon</b> antippen und sprechen – oder auf dem iPhone die <b>Mikrofontaste der Tastatur</b> nutzen bzw. einfach tippen. Beispiele:
+      <li>Sprechen:
+        <ul>
+          <li><b>iPhone / iPad</b> (auch in Teams): ins Textfeld tippen und auf der Tastatur das <b>Mikrofon 🎤</b> antippen.</li>
+          <li><b>Windows-PC</b>: Mikrofon-Knopf im Fenster – oder ins Textfeld klicken und <b>Windows-Taste + H</b>.</li>
+          <li><b>Mac</b>: Mikrofon-Knopf – oder <b>zweimal Fn/Globus-Taste</b> (Diktat).</li>
+        </ul>
+        Natürlich kann man auch einfach tippen. Beispiele:
         <ul>
           <li>„Baustellenbegehung <i>Bürogebäude</i>, heute von 9 bis 12 Uhr“</li>
           <li>„Gestern Baubesprechung <i>Brandschutzkonzept</i> von halb neun bis viertel nach elf“</li>

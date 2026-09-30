@@ -1,11 +1,22 @@
 # Zeiterfassung – Änderungsprotokoll
 
-Aktuelles Release: **1.9.1** vom 30.09.2026
+Aktuelles Release: **1.9.3** vom 30.09.2026
 
 Nummerierung: *Hauptversion.Funktion.Korrektur*. Neue Funktionen erhöhen die mittlere Zahl, reine Korrekturen die letzte.
 Die gleiche Liste ist in der App unter **Einstellungen → Über diese App → Änderungsprotokoll anzeigen** zu sehen (Quelle: `version.js`).
 
 ---
+
+## 1.9.3 – 30.09.2026 – Diktieren auf dem iPhone repariert
+- iPhone/iPad und Teams: keine Browser-Spracherkennung mehr (hing sich auf); Diktat über die Mikrofontaste der iPhone-Tastatur, Anleitung im Fenster.
+- Andere Geräte: Mikrofon-Knopf mit Sicherung (Abbruch nach 12 s ohne Sprache), Abbrechen beendet die Aufnahme.
+- Auswertung erst nach kurzer Pause statt bei jedem Zeichen.
+- Geänderte Dateien: `dictate.js`, `help.js`, `version.js`, `sw.js`, `CHANGELOG.md`
+
+## 1.9.2 – 30.09.2026 – Mikrofon in Teams
+- Teams-App-Paket meldet die Mikrofon-Berechtigung an (`devicePermissions: media`); das Paket trägt jetzt die App-Versionsnummer.
+- Diktierfenster erklärt bei verweigertem Mikrofon den Ausweichweg über die Diktierfunktion des Geräts (Windows-Taste + H, Mac-Diktat, iPhone-Tastatur).
+- Geänderte Dateien: `dictate.js`, `app.js`, `version.js`, `sw.js`, `CHANGELOG.md` – danach **neues Teams-Paket hochladen**
 
 ## 1.9.1 – 30.09.2026 – Änderungsprotokoll und Versionsanzeige
 - Release-Bezeichnung und Datum unter Einstellungen → „Über diese App“, im Namensmenü und in der Hilfe.
