@@ -1,11 +1,17 @@
 # Zeiterfassung – Änderungsprotokoll
 
-Aktuelles Release: **1.9.4** vom 30.09.2026
+Aktuelles Release: **1.9.5** vom 30.09.2026
 
 Nummerierung: *Hauptversion.Funktion.Korrektur*. Neue Funktionen erhöhen die mittlere Zahl, reine Korrekturen die letzte.
 Die gleiche Liste ist in der App unter **Einstellungen → Über diese App → Änderungsprotokoll anzeigen** zu sehen (Quelle: `version.js`).
 
 ---
+
+## 1.9.5 – 30.09.2026 – Automatischer Update-Hinweis, Diktieren in Teams
+- Hinweis „Neue Version verfügbar – Jetzt aktualisieren“, sobald auf dem Server eine neuere Version liegt.
+- Teams zuverlässiger erkannt; dort keine eigene Mikrofon-Anfrage mehr, stattdessen Anleitung zur Diktierfunktion des Geräts.
+- Diktierfenster zeigt die Versionsnummer.
+- Geänderte Dateien: `app.js`, `dictate.js`, `styles.css`, `version.js`, `sw.js`, `CHANGELOG.md`
 
 ## 1.9.4 – 30.09.2026 – Updates kommen sofort an
 - Die App fragt ihre Dateien immer frisch beim Server an statt bis zu 10 Minuten alte Kopien zu verwenden; Offline-Betrieb bleibt erhalten.

@@ -1525,5 +1525,33 @@ UI.manual.date = todayStr();
 try { if (localStorage.getItem('zeiterfassung.navCollapsed')) document.body.classList.add('nav-collapsed'); } catch { }
 renderNav();
 render();
-if ('serviceWorker' in navigator && location.protocol !== 'file:') navigator.serviceWorker.register('sw.js').catch(() => {});
+if ('serviceWorker' in navigator && location.protocol !== 'file:') {
+  // updateViaCache 'none': sw.js immer frisch prüfen; bei Rückkehr zur App erneut nach Updates sehen
+  navigator.serviceWorker.register('sw.js', { updateViaCache: 'none' }).then(reg => {
+    document.addEventListener('visibilitychange', () => { if (!document.hidden) reg.update().catch(() => {}); });
+  }).catch(() => {});
+}
+// Neue Version auf dem Server? Hinweis mit „Jetzt aktualisieren“ (hilft v. a. in Teams, das die App lange offen hält)
+async function checkForUpdate() {
+  if (location.protocol === 'file:' || !navigator.onLine) return;
+  try {
+    const txt = await (await fetch('version.js?check=' + Date.now(), { cache: 'no-store' })).text();
+    const v = /APP_VERSION\s*=\s*'([^']+)'/.exec(txt)?.[1];
+    if (!v || v === APP_VERSION || document.getElementById('update-bar')) return;
+    const bar = document.createElement('div');
+    bar.id = 'update-bar'; bar.className = 'update-bar';
+    bar.innerHTML = `Neue Version ${esc(v)} verfügbar (aktuell ${APP_VERSION}). <button class="btn primary">Jetzt aktualisieren</button>`;
+    bar.querySelector('button').addEventListener('click', updateNow);
+    document.body.appendChild(bar);
+  } catch { }
+}
+async function updateNow() {
+  try {
+    for (const r of await navigator.serviceWorker?.getRegistrations?.() || []) await r.update().catch(() => {});
+    for (const k of await caches.keys()) await caches.delete(k);
+  } catch { }
+  location.reload();
+}
+setTimeout(checkForUpdate, 3000);
+document.addEventListener('visibilitychange', () => { if (!document.hidden) checkForUpdate(); });
 if (navigator.storage?.persist) navigator.storage.persist().catch(() => {});

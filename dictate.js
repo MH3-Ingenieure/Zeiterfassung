@@ -179,7 +179,8 @@ function dzOsHint() {
   if (/Windows/.test(ua)) return 'Ins Textfeld klicken und die <b>Windows-Spracheingabe</b> starten: <b>Windows-Taste + H</b>.';
   return 'Ins Textfeld klicken und die Diktierfunktion des Geräts nutzen.';
 }
-const dzInTeams = () => !!window.Cloud?.inTeams?.();
+// Teams-Erkennung auch dann, wenn die Teams-Anmeldung (noch) nicht geklappt hat: eingebettet oder Teams-Kennung im Browser
+const dzInTeams = () => !!window.Cloud?.inTeams?.() || window.parent !== window || /Teams\//i.test(navigator.userAgent) || new URLSearchParams(location.search).has('teams');
 const dzIsIOS = () => /iPhone|iPad|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
 // Browser-Spracherkennung nur dort, wo sie zuverlässig läuft. Auf iPhone/iPad (Home-Bildschirm-App,
 // Teams) hängt sie sich auf → dort die Diktierfunktion der Tastatur verwenden.
@@ -197,7 +198,7 @@ function openDictate() {
     </div>
     <p class="dz-hint muted small" id="dz-hint">${SR ? 'Mikrofon antippen und sprechen. Klappt das nicht: ' : ''}${dzOsHint()}</p>
     <div id="dz-result"></div>
-    <div class="modal-actions"><span class="grow"></span>
+    <div class="modal-actions"><span class="muted small">Version ${APP_VERSION}</span><span class="grow"></span>
       <button class="btn ghost" data-action="close-modal">Abbrechen</button>
       <button class="btn primary" id="dz-save" disabled>Speichern</button></div>`, m => {
     const ta = $('#dz-text', m), out = $('#dz-result', m), saveBtn = $('#dz-save', m);

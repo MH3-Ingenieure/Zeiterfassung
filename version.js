@@ -5,10 +5,17 @@
    CHANGELOG.md und den Cache-Namen in sw.js mitziehen.
    Nummerierung: Hauptversion.Funktion.Korrektur (z. B. 1.9.1)
    ===================================================================== */
-const APP_VERSION = '1.9.4';
+const APP_VERSION = '1.9.5';
 const APP_RELEASE_DATE = '30.09.2026';
 
 const CHANGELOG = [
+  {
+    v: '1.9.5', date: '30.09.2026', title: 'Automatischer Update-Hinweis, Diktieren in Teams', items: [
+      'Liegt auf dem Server eine neuere Version, zeigt die App unten den Hinweis „Neue Version verfügbar – Jetzt aktualisieren“ (wichtig für Teams, das die App lange geöffnet hält).',
+      'Teams wird zuverlässiger erkannt; dort fragt die App das Mikrofon nicht mehr selbst an, sondern erklärt die Diktierfunktion von Windows/Mac/iPhone.',
+      'Das Diktierfenster zeigt die laufende Versionsnummer.'
+    ]
+  },
   {
     v: '1.9.4', date: '30.09.2026', title: 'Updates kommen sofort an', items: [
       'Die App fragt ihre Dateien immer frisch beim Server an, statt bis zu 10 Minuten alte Kopien aus dem Browser-Zwischenspeicher zu verwenden. Offline-Betrieb bleibt erhalten.'
