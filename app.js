@@ -559,13 +559,15 @@ function openUserMenu(anchor) {
       ${UI.previewRole ? `<button class="pp-item" data-m="pv-end">${ic('x')} Vorschau beenden (Administrator)</button>` : ''}` : ''}
     ${cloud && acc ? `<button class="pp-item" data-m="sync">${ic('upload')} Jetzt synchronisieren</button>
       <button class="pp-item danger" data-m="logout">${ic('x')} Abmelden</button>` : ''}
-    ${cloud && !acc ? `<button class="pp-item" data-m="login">${ic('users')} Anmelden</button>` : ''}`, pop => {
+    ${cloud && !acc ? `<button class="pp-item" data-m="login">${ic('users')} Anmelden</button>` : ''}
+    <button class="pp-item um-version" data-m="changelog">Version ${APP_VERSION} · ${APP_RELEASE_DATE}</button>`, pop => {
     pop.addEventListener('click', ev => {
       const m = ev.target.closest('[data-m]')?.dataset.m;
       if (!m) return;
       closePopover();
       if (m === 'profile') location.hash = '#/settings';
       if (m === 'help') location.hash = '#/help';
+      if (m === 'changelog') openChangelog();
       if (m.startsWith('pv-')) setPreview(m === 'pv-end' ? null : m.slice(3));
       if (m === 'sync') Cloud.sync();
       if (m === 'logout') Cloud.logout();
@@ -1274,6 +1276,11 @@ function viewSettings() {
           <button class="btn danger-ghost small" data-action="reset-all">${ic('trash')} Alle Daten löschen</button>`}
         </div>
       </div></div>
+      <div class="card"><div class="card-head">Über diese App</div><div class="card-body about">
+        <div><b>Zeiterfassung – MH3 Ingenieure</b></div>
+        <div>Release <b>Version ${APP_VERSION}</b> vom ${APP_RELEASE_DATE} – ${esc(CHANGELOG[0].title)}</div>
+        <button class="btn ghost small" data-action="changelog" style="margin-top:10px">${ic('list')} Änderungsprotokoll anzeigen</button>
+      </div></div>
       <div class="card"><div class="card-head">Auf dem iPhone installieren ${standalone ? '<span class="chip">installiert</span>' : ''}</div><div class="card-body">
         <ol class="help-list">
           <li>Diese Seite in <b>Safari</b> öffnen.</li>
@@ -1401,6 +1408,7 @@ const ACTIONS = {
   'edit-team': el => openTeamModal(el.dataset.id),
   'preview-end': () => setPreview(null),
   'dictate': () => openDictate(),
+  'changelog': () => openChangelog(),
   'open-project': el => { // Projekt aus der Übersicht → Zeiterfassung mit vorgewähltem Projekt
     const p = proj(el.dataset.id);
     if (!p) return;

@@ -1,0 +1,57 @@
+# Zeiterfassung – Änderungsprotokoll
+
+Aktuelles Release: **1.9.1** vom 30.09.2026
+
+Nummerierung: *Hauptversion.Funktion.Korrektur*. Neue Funktionen erhöhen die mittlere Zahl, reine Korrekturen die letzte.
+Die gleiche Liste ist in der App unter **Einstellungen → Über diese App → Änderungsprotokoll anzeigen** zu sehen (Quelle: `version.js`).
+
+---
+
+## 1.9.1 – 30.09.2026 – Änderungsprotokoll und Versionsanzeige
+- Release-Bezeichnung und Datum unter Einstellungen → „Über diese App“, im Namensmenü und in der Hilfe.
+- Änderungsprotokoll in der App und als Datei `CHANGELOG.md` im Repository.
+- Geänderte Dateien: `version.js` (neu), `CHANGELOG.md` (neu), `index.html`, `app.js`, `help.js`, `styles.css`, `sw.js`
+
+## 1.9.0 – 30.09.2026 – Zeit diktieren (Spracheingabe)
+- Knopf „Zeit diktieren“ auf der Startseite und im Eingabefenster – ohne vorher ein Projekt zu öffnen.
+- Erkennt Projekt (auch ungefähr), Datum (heute, gestern, Wochentag, 12.10.), Beginn/Ende („9 bis 12“, „halb neun bis viertel nach elf“), Dauer („90 Minuten“), Tags und Kommentar.
+- Kontrollfenster mit Korrekturmöglichkeit vor dem Speichern; Projektvorschläge, wenn nicht eindeutig.
+- Geänderte Dateien: `dictate.js` (neu), `index.html`, `app.js`, `help.js`, `styles.css`, `sw.js`
+
+## 1.8.0 – 30.09.2026 – Neue Startseite und Eingabefenster, Rollen-Vorschau
+- Startseite ist die Projektübersicht; Klick auf den Projektnamen öffnet die Zeiterfassung für das Projekt.
+- Eingabefenster: Projekt → Kommentar (schwarz umrandet) → Tag/€ → Datum, Beginn, Ende → HINZUFÜGEN; Timer optional.
+- Eintragsliste mit Projekt als Überschrift, darunter der Kommentar.
+- Projektleiter und Mitarbeiter können Projektname/-farbe nicht bearbeiten.
+- „Ansicht testen als …“ für Administratoren.
+
+## 1.7.1 – 30.09.2026 – Personenauswahl in Berichten
+- Feld „Person“ immer sichtbar, mit allen aktiven Mitarbeitern (Projektleiter: ihr Team).
+
+## 1.7.0 – 29.09.2026 – Projekte abschließen, MH3-Logo
+- Projekte abschließen: archiviert, Einträge gesperrt, SharePoint-Liste schreibgeschützt; wieder öffnen möglich.
+- MH3-Logo in Kopfzeile und Anmeldebildschirm; Berichte/PDF mit Firmenkopf.
+
+## 1.6.0 – 29.09.2026 – Projektzuordnung
+- Mitarbeiter und Projektleiter sehen nur zugeordnete Projekte; Projektleiter ordnen Mitarbeiter zu, Administratoren die Projektleiter.
+- Projekte/Kunden legen Administratoren und Buchhaltung an.
+
+## 1.5.0 – 29.09.2026 – Teams-App, Hilfe, Einrichtungsanleitung
+- Teams-App mit Anmeldung über Teams, Teams-App-Paket zum Herunterladen.
+- Hilfe-Menü in der App; Einrichtungsanleitung (Word).
+
+## 1.4.0 – 29.09.2026 – Tags und Kommentar
+- Tags nur durch Administrator; mehrzeiliger Kommentar, vollständig in SharePoint.
+
+## 1.3.0 – 29.09.2026 – Rollen und Rechte
+- Rollen Administrator, Projektleiter, Mitarbeiter, Buchhaltung; „Benutzer & Rollen“.
+- Je Projekt eine SharePoint-Liste mit automatisch gesetzten Rechten; Stundensätze geschützt.
+
+## 1.2.0 – 29.09.2026 – Stundensätze je Projekt
+- Stundensatz bei abrechenbaren Projekten Pflicht; Nutzeranleitung (Word).
+
+## 1.1.0 – 28.09.2026 – Microsoft 365
+- Anmeldung mit Firmenkonto, Speicherung in SharePoint, offline-fähig; Benutzermenü.
+
+## 1.0.0 – 28.09.2026 – Erste Version
+- Timer und manuelle Erfassung, Projekte, Kunden, Tags, Berichte mit CSV/PDF, iPhone-installierbar.

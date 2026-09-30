@@ -236,6 +236,7 @@ function viewHelp() {
         <div class="help-body">${h.body}</div>
       </details>`).join('')}</div>
     <p id="help-none" class="muted" hidden>Nichts gefunden. Anderen Begriff versuchen.</p>
+    <p class="muted small help-version">Zeiterfassung Version ${APP_VERSION} vom ${APP_RELEASE_DATE} · <button class="link-btn" data-action="changelog">Änderungsprotokoll</button></p>
   </div>`;
 }
 // Suche: Groß/klein und Umlaute egal, Wortstamm genügt („nachtragen“ findet „nachträglich“)
