@@ -1,6 +1,6 @@
 // Service Worker: Offline-Betrieb. Eigene Dateien: Netzwerk zuerst (Updates kommen sofort an), Cache als Fallback.
 // Anmeldebibliothek vom CDN: Cache zuerst (versionierte, unveränderliche Datei).
-const CACHE = 'zeiterfassung-1.9.3'; // mit APP_VERSION in version.js mitziehen
+const CACHE = 'zeiterfassung-1.9.4'; // mit APP_VERSION in version.js mitziehen
 const MSAL_URL = 'https://cdn.jsdelivr.net/npm/@azure/msal-browser@3.30.0/lib/msal-browser.min.js';
 const ASSETS = ['./', './index.html', './styles.css', './version.js', './help.js', './dictate.js', './app.js', './cloud.js', './anleitung.html', './config.js', './manifest.webmanifest',
   './icons/icon-180.png', './icons/icon-192.png', './icons/icon-512.png',
@@ -8,7 +8,7 @@ const ASSETS = ['./', './index.html', './styles.css', './version.js', './help.js
 
 self.addEventListener('install', e => {
   e.waitUntil(caches.open(CACHE).then(async c => {
-    await c.addAll(ASSETS);
+    await c.addAll(ASSETS.map(u => new Request(u, { cache: 'reload' }))); // frisch vom Server, nicht aus dem Browser-Cache
     try { await c.add(new Request(MSAL_URL, { mode: 'cors' })); } catch (err) { /* später erneut */ }
   }));
   self.skipWaiting();
@@ -31,8 +31,11 @@ self.addEventListener('fetch', e => {
     return;
   }
   if (new URL(req.url).origin !== location.origin) return; // Microsoft-Anmeldung und Graph nie abfangen
+  // Immer beim Server nachfragen (GitHub hält Dateien sonst bis zu 10 Minuten im Browser-Cache).
+  // Unveränderte Dateien kommen dabei trotzdem schnell als „nicht geändert“ zurück.
+  const fresh = req.mode === 'navigate' ? new Request(req.url, { cache: 'no-cache', credentials: 'same-origin' }) : new Request(req, { cache: 'no-cache' });
   e.respondWith(
-    fetch(req).then(res => {
+    fetch(fresh).then(res => {
       const copy = res.clone();
       caches.open(CACHE).then(c => c.put(req, copy));
       return res;

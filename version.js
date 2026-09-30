@@ -5,10 +5,15 @@
    CHANGELOG.md und den Cache-Namen in sw.js mitziehen.
    Nummerierung: Hauptversion.Funktion.Korrektur (z. B. 1.9.1)
    ===================================================================== */
-const APP_VERSION = '1.9.3';
+const APP_VERSION = '1.9.4';
 const APP_RELEASE_DATE = '30.09.2026';
 
 const CHANGELOG = [
+  {
+    v: '1.9.4', date: '30.09.2026', title: 'Updates kommen sofort an', items: [
+      'Die App fragt ihre Dateien immer frisch beim Server an, statt bis zu 10 Minuten alte Kopien aus dem Browser-Zwischenspeicher zu verwenden. Offline-Betrieb bleibt erhalten.'
+    ]
+  },
   {
     v: '1.9.3', date: '30.09.2026', title: 'Diktieren auf dem iPhone repariert', items: [
       'Auf iPhone/iPad und in Teams wird die hängende Browser-Spracherkennung nicht mehr verwendet; stattdessen Diktat über die Mikrofontaste der iPhone-Tastatur (Anleitung direkt im Fenster).',

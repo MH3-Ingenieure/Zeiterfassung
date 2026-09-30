@@ -1,11 +1,15 @@
 # Zeiterfassung – Änderungsprotokoll
 
-Aktuelles Release: **1.9.3** vom 30.09.2026
+Aktuelles Release: **1.9.4** vom 30.09.2026
 
 Nummerierung: *Hauptversion.Funktion.Korrektur*. Neue Funktionen erhöhen die mittlere Zahl, reine Korrekturen die letzte.
 Die gleiche Liste ist in der App unter **Einstellungen → Über diese App → Änderungsprotokoll anzeigen** zu sehen (Quelle: `version.js`).
 
 ---
+
+## 1.9.4 – 30.09.2026 – Updates kommen sofort an
+- Die App fragt ihre Dateien immer frisch beim Server an statt bis zu 10 Minuten alte Kopien zu verwenden; Offline-Betrieb bleibt erhalten.
+- Geänderte Dateien: `sw.js`, `version.js`, `CHANGELOG.md`
 
 ## 1.9.3 – 30.09.2026 – Diktieren auf dem iPhone repariert
 - iPhone/iPad und Teams: keine Browser-Spracherkennung mehr (hing sich auf); Diktat über die Mikrofontaste der iPhone-Tastatur, Anleitung im Fenster.
