@@ -1,6 +1,6 @@
 // Service Worker: Offline-Betrieb. Eigene Dateien: Netzwerk zuerst (Updates kommen sofort an), Cache als Fallback.
 // Anmeldebibliothek vom CDN: Cache zuerst (versionierte, unveränderliche Datei).
-const CACHE = 'zeiterfassung-v4';
+const CACHE = 'zeiterfassung-v5';
 const MSAL_URL = 'https://cdn.jsdelivr.net/npm/@azure/msal-browser@3.30.0/lib/msal-browser.min.js';
 const ASSETS = ['./', './index.html', './styles.css', './help.js', './app.js', './cloud.js', './anleitung.html', './config.js', './manifest.webmanifest',
   './icons/icon-180.png', './icons/icon-192.png', './icons/icon-512.png',

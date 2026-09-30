@@ -140,7 +140,7 @@ const Cloud = (() => {
         if (res?.account) account = res.account;
       }
     } catch (e) { console.error(e); setState('error', e.message); }
-    if (/[#&](code|error|state)=/.test(location.hash)) history.replaceState(null, '', baseUrl() + '#/tracker');
+    if (/[#&](code|error|state)=/.test(location.hash)) history.replaceState(null, '', baseUrl() + '#/projects');
     account = account || pca?.getActiveAccount() || pca?.getAllAccounts()[0] || null;
     if (!account) { showLoginScreen(); setState('login'); return; }
     start();

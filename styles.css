@@ -146,6 +146,42 @@ main { min-width: 0; padding: 24px 28px 48px; }
 .manual input { border: 1px solid var(--border); border-radius: 3px; padding: 0 6px; background: var(--surface); height: 36px; }
 .manual .m-dur { font-weight: 600; font-variant-numeric: tabular-nums; min-width: 70px; text-align: right; padding-right: 6px; }
 
+/* ---------- Eingabeformular (Projekt → Kommentar → Zeiten) ---------- */
+:root { --strong: #1c1c1a; }
+@media (prefers-color-scheme: dark) { :root { --strong: #d8dde1; } }
+.entry-form { padding: 16px 18px 12px; margin-bottom: 26px; display: flex; flex-direction: column; gap: 12px; }
+.entry-form.running { border-color: var(--accent); }
+.ef-title { font-size: 16px; font-weight: 600; display: flex; align-items: center; gap: 8px; }
+.ef-field { display: flex; flex-direction: column; gap: 5px; }
+.ef-label { font-size: 12px; color: var(--muted-2); font-weight: 500; }
+.ef-proj { display: flex; align-items: center; gap: 10px; min-height: 46px; padding: 0 12px; border: 1px solid var(--border); border-radius: 6px; background: var(--surface-2); text-align: left; font-size: 17px; }
+.ef-proj .proj { font-weight: 700; }
+.ef-proj:hover { border-color: var(--accent); }
+.ef-change { margin-left: auto; font-size: 12.5px; color: var(--accent); }
+.ef-comment { width: 100%; border: 2px solid var(--strong) !important; border-radius: 6px; padding: 10px 12px; font: inherit; font-size: 15px; background: var(--surface); color: var(--text); resize: vertical; min-height: 64px; }
+.ef-comment:focus { outline: 2px solid var(--accent); outline-offset: 1px; }
+.ef-row { display: flex; flex-wrap: wrap; gap: 8px; align-items: flex-end; }
+.ef-on { border-color: var(--accent) !important; color: var(--accent); }
+.ef-times { gap: 10px; }
+.ef-mini { display: flex; flex-direction: column; gap: 4px; font-size: 12px; color: var(--muted-2); }
+.ef-mini input { height: 40px; border: 1px solid var(--border); border-radius: 4px; padding: 0 8px; background: var(--surface); color: var(--text); font-size: 15px; }
+.ef-mini .m-dur { height: 40px; display: flex; align-items: center; font-size: 16px; color: var(--text); font-variant-numeric: tabular-nums; min-width: 70px; }
+.ef-main { height: 40px; min-width: 130px; margin-left: auto; }
+.ef-switch { align-self: flex-start; display: inline-flex; align-items: center; gap: 6px; color: var(--muted-2); font-size: 12.5px; padding: 4px 0; }
+.ef-switch .ic { width: 14px; height: 14px; }
+.ef-switch:hover { color: var(--accent); }
+.page-hint { margin: -6px 0 14px; color: var(--muted-2); }
+.preview-banner { max-width: 1120px; margin: 0 auto 16px; display: flex; align-items: center; gap: 10px; flex-wrap: wrap; padding: 10px 14px; border-radius: 6px; background: #fff3cd; color: #5c4400; border: 1px solid #f0c36d; }
+.preview-banner .btn { margin-left: auto; background: #5c4400; color: #fff; }
+@media print { .preview-banner { display: none !important; } }
+.name-open { color: var(--text); }
+.name-open:hover { color: var(--accent); text-decoration: underline; }
+@media (max-width: 760px) {
+  .ef-times .ef-mini { flex: 1 1 30%; }
+  .ef-times .ef-mini input { width: 100%; }
+  .ef-main { flex: 1 1 100%; margin-left: 0; }
+}
+
 /* ---------- Einträge ---------- */
 .week-head { display: flex; justify-content: space-between; gap: 10px; color: var(--muted-2); font-size: 13px; margin: 22px 2px 8px; }
 .week-head:first-of-type { margin-top: 0; }
@@ -158,9 +194,12 @@ main { min-width: 0; padding: 24px 28px 48px; }
 .entry { display: flex; align-items: center; gap: 10px; padding: 6px 8px 6px 16px; border-bottom: 1px solid var(--border); min-height: 56px; }
 .entry:last-child { border-bottom: 0; }
 .entry:hover { background: var(--surface-2); }
-.e-left { flex: 1; min-width: 0; display: flex; align-items: center; gap: 10px; }
-.e-desc { flex: 0 0 auto; text-align: left; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 48%; padding: 6px 0; }
-.e-left .proj-btn { flex: 0 1 auto; }
+/* Eintrag: oben das Projekt als Überschrift, darunter der Kommentar */
+.e-left { flex: 1; min-width: 0; display: flex; flex-direction: column; align-items: flex-start; gap: 0; padding: 4px 0; }
+.e-head { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; max-width: 100%; }
+.e-left .proj-btn.e-proj { height: 26px; padding: 0; font-size: 14.5px; }
+.e-left .e-proj .proj { font-weight: 700; }
+.e-desc { text-align: left; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 100%; padding: 1px 0 3px; color: var(--muted-2); }
 .e-tags { flex: 0 1 auto; min-width: 0; overflow: hidden; }
 .e-tags { display: flex; gap: 4px; flex-wrap: wrap; }
 .chip { font-size: 11px; padding: 2px 7px; border-radius: 10px; background: var(--hover); color: var(--muted-2); white-space: nowrap; }
@@ -363,9 +402,7 @@ table.tbl { width: 100%; border-collapse: collapse; }
   .tb-main { flex: 1; }
 
   .entry { flex-direction: column; align-items: stretch; gap: 0; padding: 8px 6px 4px 14px; }
-  .e-left { flex-direction: column; align-items: flex-start; gap: 2px; }
-  .e-desc { max-width: 100%; padding: 2px 0; font-weight: 500; }
-  .e-left .proj-btn { padding-left: 0; height: 28px; }
+  .e-desc { white-space: normal; }
   .e-right { justify-content: flex-end; }
   .e-range { font-size: 12.5px; margin-right: auto; padding-left: 0; }
 

@@ -10,31 +10,30 @@ const HELP = [
     <p>Die Zeiterfassung erfasst Ihre Arbeitszeit je <b>Projekt</b>, mit <b>Tags</b> (Art der Tätigkeit, z. B. „Ortstermin“) und einem <b>Kommentar</b> (was genau Sie gemacht haben).</p>
     <ul>
       <li><b>Anmelden:</b> mit Ihrem Microsoft-365-Firmenkonto. In Teams geschieht das automatisch.</li>
-      <li><b>Links im Menü</b> (auf dem iPhone unten bzw. unter „Mehr“): Zeiterfassung, Berichte, Projekte, Kunden, Tags, Einstellungen, Hilfe.</li>
+      <li><b>Startseite</b> ist die <b>Projektübersicht</b>. Ein Klick auf einen <b>Projektnamen</b> öffnet die Zeiterfassung für dieses Projekt.</li>
+      <li><b>Links im Menü</b> (auf dem iPhone unten bzw. unter „Mehr“): Projekte, Zeiterfassung, Berichte, Kunden, Tags, Einstellungen, Hilfe.</li>
       <li><b>Oben rechts:</b> das Wolken-Symbol zeigt, ob alles übertragen ist; Ihr Name öffnet das Benutzermenü (Profil, Synchronisieren, Abmelden).</li>
       <li><b>Drei Striche ☰ oben links:</b> Menü ein- und ausklappen.</li>
     </ul>`
   },
   {
-    roles: 'all', title: 'Zeit mit dem Timer erfassen', body: `
+    roles: 'all', title: 'Zeiten eintragen', body: `
     <ol>
-      <li>Oben in das Feld <b>„Woran arbeitest du? (Kommentar)“</b> eintragen, was Sie tun – z. B. „Begehung Heizraum mit Hausmeister“.</li>
-      <li>Auf <b>„+ Projekt“</b> tippen und das Projekt wählen (Suche nach Projekt- oder Kundenname möglich).</li>
-      <li>Auf das <b>Etikett-Symbol</b> tippen und einen oder mehrere <b>Tags</b> wählen, z. B. „Ortstermin“.</li>
-      <li>Das <b>€-Symbol</b> zeigt, ob die Zeit abrechenbar ist – es wird vom Projekt vorbelegt und muss meist nicht geändert werden.</li>
-      <li><b>START</b> tippen. Die Zeit läuft – auch wenn Sie die App schließen oder das iPhone sperren.</li>
-      <li>Am Ende <b>STOPP</b> tippen. Der Eintrag steht in der Liste darunter.</li>
+      <li>Auf der Startseite (<b>Projekte</b>) auf den <b>Projektnamen</b> tippen. Das Eingabefenster öffnet sich mit diesem Projekt. (Alternativ: Menü <b>Zeiterfassung</b> → „Projekt wählen“.)</li>
+      <li>Im umrandeten Feld <b>Kommentar</b> eintragen, was Sie gemacht haben – z. B. „Begehung Heizraum mit Hausmeister“. Mehrere Zeilen sind möglich.</li>
+      <li><b>„Tag wählen“</b> tippen und die Art der Tätigkeit wählen, z. B. „Ortstermin“. Das <b>€-Feld</b> (abrechenbar) ist vom Projekt vorbelegt.</li>
+      <li><b>Datum</b>, <b>Beginn</b> und <b>Ende</b> eintragen – die Dauer wird angezeigt. Arbeit über Mitternacht wird erkannt.</li>
+      <li><b>HINZUFÜGEN</b> tippen. Der Eintrag erscheint in der Liste darunter.</li>
     </ol>
-    <p>Versehentlich gestartet? Mit dem <b>Papierkorb</b> neben STOPP verwerfen.<br>
-    Tipp: Wählen Sie eine früher verwendete Beschreibung aus den Vorschlägen, werden Projekt und Tags automatisch übernommen.</p>`
+    <p>Das Projekt bleibt danach gewählt und der nächste Beginn ist mit dem letzten Ende vorbelegt – so tragen Sie mehrere Tätigkeiten hintereinander schnell ein. Am PC fügt <b>Strg + Enter</b> im Kommentarfeld den Eintrag hinzu.</p>`
   },
   {
-    roles: 'all', title: 'Zeit nachträglich eintragen', body: `
+    roles: 'all', title: 'Timer (optional)', body: `
     <ol>
-      <li>Rechts neben START auf das <b>Listen-Symbol</b> tippen (manuelle Eingabe). Das Uhr-Symbol schaltet zurück zum Timer.</li>
-      <li>Kommentar, Projekt und Tags wie beim Timer festlegen.</li>
-      <li><b>Beginn</b>, <b>Ende</b> und <b>Datum</b> eintragen – die Dauer wird angezeigt. Arbeit über Mitternacht wird erkannt.</li>
-      <li><b>HINZUFÜGEN</b> tippen.</li>
+      <li>Im Eingabefenster unten auf <b>„stattdessen Timer starten“</b> tippen.</li>
+      <li>Projekt, Kommentar und Tag wie gewohnt festlegen und <b>START</b> tippen. Die Zeit läuft – auch wenn Sie die App schließen oder das iPhone sperren.</li>
+      <li>Am Ende <b>STOPP</b> tippen. Versehentlich gestartet? Mit dem <b>Papierkorb</b> verwerfen.</li>
+      <li>Zurück zur normalen Eingabe über <b>„zurück zur Eingabe von Beginn und Ende“</b>.</li>
     </ol>`
   },
   {
@@ -48,6 +47,7 @@ const HELP = [
   {
     roles: 'all', title: 'Einträge ändern, fortsetzen, löschen', body: `
     <ul>
+      <li>In der Liste steht bei jedem Eintrag oben das <b>Projekt</b>, darunter der <b>Kommentar</b>.</li>
       <li><b>Ändern:</b> auf Kommentar oder Uhrzeit des Eintrags tippen → Dialog mit Kommentar, Projekt, Tags, abrechenbar, Datum, Beginn und Ende → <b>Speichern</b> (am PC auch Strg + Enter).</li>
       <li><b>Projekt oder Tags schnell ändern:</b> direkt auf den farbigen Projektnamen bzw. das Etikett im Eintrag tippen.</li>
       <li><b>Fortsetzen ▶:</b> startet einen neuen Timer mit gleichem Kommentar, Projekt und Tags.</li>
@@ -166,6 +166,16 @@ const HELP = [
       <li><b>Austritt:</b> „Aktiv“ abwählen – der Zugriff wird entzogen, die Zeiten bleiben erhalten. Bei Projektleitern einen Nachfolger im Projekt eintragen.</li>
     </ol>
     <p>Es muss immer mindestens einen Administrator geben. Wer selbst Zeiten erfasst, braucht „Mitarbeiter“ (Projektleiter können immer erfassen).</p>`
+  },
+  {
+    roles: ['admin'], title: 'Administration: Ansicht einer Rolle testen', body: `
+    <ol>
+      <li>Oben rechts auf Ihren <b>Namen</b> tippen.</li>
+      <li>Unter <b>„Ansicht testen als …“</b> die Rolle wählen: <b>Projektleiter</b>, <b>Mitarbeiter</b> oder <b>Buchhaltung</b>.</li>
+      <li>Die App zeigt nun Menü, Projekte, Knöpfe und Berichte so, wie diese Rolle sie sieht. Ein gelbes Band oben erinnert daran.</li>
+      <li>Zurück mit <b>„Vorschau beenden“</b> im gelben Band oder im Namensmenü.</li>
+    </ol>
+    <p>Hinweise: Es wird nur die <b>Ansicht</b> eingeschränkt – Ihre echten Rechte in SharePoint bleiben. Als Projektleiter bzw. Mitarbeiter sehen Sie die Projekte, bei denen <b>Sie selbst</b> als Projektleiter bzw. im Team eingetragen sind; ordnen Sie sich zum Testen ggf. einem Testprojekt zu. Einen echten Test mit einem anderen Konto ersetzt die Vorschau nicht vollständig.</p>`
   },
   {
     roles: ['admin'], title: 'Administration: Tags pflegen', body: `

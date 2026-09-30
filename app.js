@@ -13,7 +13,7 @@ const HOUR = 3600000, DAY = 86400000;
 /* ---------- Zustand ---------- */
 function defaultState() {
   return {
-    settings: { userName: '', currency: 'EUR', defaultRate: 0, weekStart: 1, durationFormat: 'hms', trackMode: 'timer' },
+    settings: { userName: '', currency: 'EUR', defaultRate: 0, weekStart: 1, durationFormat: 'hms', trackMode: 'manual', modeV2: true },
     clients: [], projects: [], tags: [], entries: [], running: null, roles: []
   };
 }
@@ -22,7 +22,9 @@ function load() {
     const raw = localStorage.getItem(STORE_KEY);
     if (raw) {
       const d = JSON.parse(raw), def = defaultState();
-      return Object.assign(def, d, { settings: Object.assign(def.settings, d.settings || {}) });
+      const st = Object.assign(def.settings, d.settings || {});
+      if (!st.modeV2) { st.trackMode = 'manual'; st.modeV2 = true; } // Zeiten eintragen ist jetzt der Standard, Timer optional
+      return Object.assign(def, d, { settings: st });
     }
   } catch (e) { console.warn('Laden fehlgeschlagen', e); }
   return defaultState();
@@ -133,17 +135,37 @@ const P = {
 const ic = n => `<svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${P[n]}</svg>`;
 
 /* ---------- Navigation ---------- */
-const NAV = [
+const NAV = [ // Startseite ist die Projektübersicht
+  ['projects', 'folder', 'Projekte'],
   ['tracker', 'clock', 'Zeiterfassung'],
   ['reports', 'chart', 'Berichte'],
-  ['projects', 'folder', 'Projekte'],
   ['clients', 'users', 'Kunden'],
   ['tags', 'tag', 'Tags'],
   ['settings', 'cog', 'Einstellungen'],
   ['help', 'help', 'Hilfe']
 ];
 /* ---------- Rollen (ohne Microsoft 365: alles erlaubt) ---------- */
-const role = () => window.Cloud?.myRole ? Cloud.myRole() : { admin: true, pl: true, ma: true, bh: true, local: true };
+const baseRole = () => window.Cloud?.myRole ? Cloud.myRole() : { admin: true, pl: true, ma: true, bh: true, local: true };
+// Rollen-Vorschau für Administratoren: nur die Ansicht wird eingeschränkt, die echten Rechte bleiben
+const PREVIEW = { pl: ['Projektleiter', { pl: true, ma: true }], ma: ['Mitarbeiter', { ma: true }], bh: ['Buchhaltung', { bh: true }] };
+try { UI.previewRole = sessionStorage.getItem('zeiterfassung.preview') || null; } catch { UI.previewRole = null; }
+const role = () => {
+  const b = baseRole();
+  return b.admin && PREVIEW[UI.previewRole] ? { admin: false, pl: false, ma: false, bh: false, ...PREVIEW[UI.previewRole][1], preview: UI.previewRole } : b;
+};
+function setPreview(r) {
+  UI.previewRole = PREVIEW[r] ? r : null;
+  try { UI.previewRole ? sessionStorage.setItem('zeiterfassung.preview', r) : sessionStorage.removeItem('zeiterfassung.preview'); } catch { }
+  if (window.Cloud?.refreshTeam) Cloud.refreshTeam();
+  UI.report.scope = 'me'; UI.report.userId = ''; UI.report.groupBy = 'project';
+  location.hash = '#/projects'; render();
+  toast(UI.previewRole ? `Vorschau: Ansicht als ${PREVIEW[r][0]}` : 'Vorschau beendet – wieder Administrator');
+}
+function previewBanner() {
+  const p = role().preview;
+  return p ? `<div class="preview-banner">${ic('shield')} <span><b>Vorschau als ${PREVIEW[p][0]}</b> – so sieht die App für diese Rolle aus. Ihre echten Rechte bleiben erhalten.</span>
+    <button class="btn small" data-action="preview-end">Vorschau beenden</button></div>` : '';
+}
 const meId = () => S.sync?.userId || null;
 const canSeeRates = () => { const r = role(); return r.admin || r.pl || r.bh; };
 // Projekte anlegen/pflegen: Administrator und Buchhaltung. Projektleiter ordnet nur sein Team zu.
@@ -162,10 +184,10 @@ const canManageUsers = () => cloudOn() && role().admin;
 function renderNav() {
   const nav = canManageUsers() ? [...NAV.slice(0, 5), ['users', 'shield', 'Benutzer & Rollen'], ...NAV.slice(5)] : NAV;
   $('#sidebar').innerHTML = nav.map(([r, i, t], n) =>
-    (n === 2 || r === 'settings' ? '<div class="nav-sep"></div>' : '') +
+    (n === 3 || r === 'settings' ? '<div class="nav-sep"></div>' : '') +
     `<a class="nav-link" href="#/${r}" data-route="${r}" title="${t}">${ic(i)}<span>${t}</span></a>`).join('');
   $('#bottombar').innerHTML = NAV.slice(0, 3).map(([r, i, t]) =>
-    `<a href="#/${r}" data-route="${r}">${ic(i)}<span>${r === 'tracker' ? 'Timer' : t}</span></a>`).join('') +
+    `<a href="#/${r}" data-route="${r}">${ic(i)}<span>${r === 'tracker' ? 'Zeiten' : t}</span></a>`).join('') +
     `<button data-action="toggle-nav">${ic('menu')}<span>Mehr</span></button>`;
 }
 
@@ -173,11 +195,11 @@ const VIEWS = { tracker: viewTracker, reports: viewReports, projects: viewProjec
 const AFTER = { tracker: afterTracker, projects: afterProjects, help: () => afterHelp() };
 
 function render() {
-  const r = location.hash.replace(/^#\/?/, '') || 'tracker';
-  UI.route = VIEWS[r] && (r !== 'users' || canManageUsers()) ? r : 'tracker';
+  const r = location.hash.replace(/^#\/?/, '') || 'projects';
+  UI.route = VIEWS[r] && (r !== 'users' || canManageUsers()) ? r : 'projects';
   renderNav();
   $$('[data-route]').forEach(a => a.classList.toggle('active', a.dataset.route === UI.route));
-  $('#view').innerHTML = VIEWS[UI.route]();
+  $('#view').innerHTML = previewBanner() + VIEWS[UI.route]();
   AFTER[UI.route]?.();
   const name = S.settings.userName || '';
   $('#user-name').textContent = name || 'Profil';
@@ -199,35 +221,39 @@ function tagsLabel(ids) {
   return names.length ? esc(names.join(', ')) : '<span class="muted">Keine Tags</span>';
 }
 
+// Eingabeformular: 1. Projekt, 2. Kommentar (umrandet), 3. Tags/€, 4. Datum, Beginn, Ende → HINZUFÜGEN.
+// Der Timer ist nur eine Nebenoption.
 function timerBarHTML() {
   const r = S.running, d = r || UI.draft;
-  const manual = S.settings.trackMode === 'manual' && !r;
-  const suggestions = [...new Set(S.entries.slice().sort((a, b) => b.start - a.start).map(e => e.description).filter(Boolean))].slice(0, 60);
+  const manual = S.settings.trackMode !== 'timer' && !r;
   const m = UI.manual;
-  return `<div class="timerbar ${r ? 'running' : ''}">
-    <input class="tb-desc" id="tb-desc" list="desc-list" placeholder="Woran arbeitest du? (Kommentar)" maxlength="4000" value="${esc(d.description)}" autocomplete="off" enterkeyhint="go">
-    <datalist id="desc-list">${suggestions.map(s => `<option value="${esc(s)}">`).join('')}</datalist>
-    <div class="tb-controls">
-      <button class="proj-btn" data-action="pick-project" data-target="timer">${projLabel(d.projectId)}</button>
-      <span class="tb-sep"></span>
-      <button class="icon-btn ${d.tagIds.length ? 'active' : ''}" data-action="pick-tags" data-target="timer" title="Tags">${ic('tag')}${d.tagIds.length ? `<span class="badge">${d.tagIds.length}</span>` : ''}</button>
-      <button class="icon-btn ${d.billable ? 'active' : ''}" data-action="toggle-billable" data-target="timer" title="Abrechenbar">€</button>
-      <span class="tb-sep"></span>
-      ${manual ? `<div class="manual">
-          <input type="time" id="m-start" value="${m.start}" aria-label="Beginn"><span>–</span>
-          <input type="time" id="m-end" value="${m.end}" aria-label="Ende">
-          <input type="date" id="m-date" value="${m.date}" aria-label="Datum">
-          <span class="m-dur" id="m-dur">0:00:00</span>
-        </div>
-        <button class="btn primary tb-main" data-action="add-manual">HINZUFÜGEN</button>`
-      : `<span class="tb-time" id="timer-display">${r ? fmtClock(Date.now() - r.start) : '0:00:00'}</span>
-        ${r ? `<button class="btn danger tb-main" data-action="stop">STOPP</button>` : `<button class="btn primary tb-main" data-action="start">START</button>`}`}
-      ${r ? `<button class="icon-btn" data-action="discard" title="Timer verwerfen">${ic('trash')}</button>`
-      : `<div class="mode-toggle">
-          <button class="${!manual ? 'active' : ''}" data-action="set-mode" data-mode="timer" title="Timer-Modus">${ic('clock')}</button>
-          <button class="${manual ? 'active' : ''}" data-action="set-mode" data-mode="manual" title="Manuelle Eingabe">${ic('list')}</button>
-        </div>`}
+  return `<div class="card entry-form ${r ? 'running' : ''}">
+    <div class="ef-title">${r ? `${ic('clock')} Timer läuft` : manual ? 'Zeit eintragen' : `${ic('clock')} Zeit mit Timer erfassen`}</div>
+    <div class="ef-field">
+      <span class="ef-label">Projekt</span>
+      <button class="ef-proj" data-action="pick-project" data-target="timer">${projLabel(d.projectId, 'Projekt wählen')}<span class="ef-change">${d.projectId ? 'ändern' : ''}</span></button>
     </div>
+    <label class="ef-field"><span class="ef-label">Kommentar – was wurde gemacht?</span>
+      <textarea id="tb-desc" class="ef-comment" rows="2" maxlength="4000" placeholder="z. B. Begehung Heizraum mit Hausmeister, Mängel an Pumpe P2 aufgenommen">${esc(d.description)}</textarea></label>
+    <div class="ef-row">
+      <button class="btn ghost small ${d.tagIds.length ? 'ef-on' : ''}" data-action="pick-tags" data-target="timer">${ic('tag')} ${d.tagIds.length ? esc(d.tagIds.map(tag).filter(Boolean).map(t => t.name).join(', ')) : 'Tag wählen'}</button>
+      <button class="btn ghost small ${d.billable ? 'ef-on' : ''}" data-action="toggle-billable" data-target="timer" title="Abrechenbar">€ ${d.billable ? 'abrechenbar' : 'nicht abrechenbar'}</button>
+    </div>
+    ${manual ? `<div class="ef-row ef-times">
+        <label class="ef-mini"><span>Datum</span><input type="date" id="m-date" value="${m.date}"></label>
+        <label class="ef-mini"><span>Beginn</span><input type="time" id="m-start" value="${m.start}"></label>
+        <label class="ef-mini"><span>Ende</span><input type="time" id="m-end" value="${m.end}"></label>
+        <div class="ef-mini"><span>Dauer</span><b class="m-dur" id="m-dur">0:00:00</b></div>
+        <button class="btn primary ef-main" data-action="add-manual">HINZUFÜGEN</button>
+      </div>
+      <button class="ef-switch" data-action="set-mode" data-mode="timer">${ic('clock')} stattdessen Timer starten</button>`
+    : `<div class="ef-row ef-times">
+        <span class="tb-time" id="timer-display">${r ? fmtClock(Date.now() - r.start) : '0:00:00'}</span>
+        ${r ? `<button class="btn danger ef-main" data-action="stop">STOPP</button>
+          <button class="icon-btn" data-action="discard" title="Timer verwerfen">${ic('trash')}</button>`
+        : `<button class="btn primary ef-main" data-action="start">START</button>`}
+      </div>
+      ${r ? '' : `<button class="ef-switch" data-action="set-mode" data-mode="manual">${ic('list')} zurück zur Eingabe von Beginn und Ende</button>`}`}
   </div>`;
 }
 
@@ -241,10 +267,12 @@ function entryRowHTML(e) {
   const overnight = startOfDay(e.end) !== startOfDay(e.start) && e.end - startOfDay(e.end) > 0;
   return `<div class="entry ${locked ? 'locked' : ''}">
     <div class="e-left">
-      <button class="e-desc" data-action="edit-entry" data-id="${e.id}" title="${esc(e.description)}">${e.description ? esc(e.description) : '<span class="muted">(ohne Beschreibung)</span>'}</button>
-      <button class="proj-btn" data-action="pick-project" data-target="${e.id}">${projLabel(e.projectId)}</button>
-      ${locked ? `<span class="chip lock-chip" title="Projekt abgeschlossen">${ic('lock')} abgeschlossen</span>` : ''}
-      ${tags.length ? `<div class="e-tags">${tags.map(t => `<span class="chip">${esc(t.name)}</span>`).join('')}</div>` : ''}
+      <div class="e-head">
+        <button class="proj-btn e-proj" data-action="pick-project" data-target="${e.id}">${projLabel(e.projectId, 'ohne Projekt')}</button>
+        ${locked ? `<span class="chip lock-chip" title="Projekt abgeschlossen">${ic('lock')} abgeschlossen</span>` : ''}
+        ${tags.length ? `<span class="e-tags">${tags.map(t => `<span class="chip">${esc(t.name)}</span>`).join('')}</span>` : ''}
+      </div>
+      <button class="e-desc" data-action="edit-entry" data-id="${e.id}" title="${esc(e.description)}">${e.description ? esc(e.description) : '<span class="muted">(ohne Kommentar)</span>'}</button>
     </div>
     <div class="e-right">
       <button class="e-range" data-action="edit-entry" data-id="${e.id}">${fmtTime(e.start)} – ${fmtTime(e.end)}${overnight ? '<sup>+1</sup>' : ''}</button>
@@ -260,8 +288,8 @@ function entryRowHTML(e) {
 function entriesHTML() {
   if (!S.entries.length) {
     return `<div class="card empty">${ic('clock').replace('class="ic"', 'class="ic big"')}
-      <h3>Los geht's mit der Zeiterfassung</h3>
-      <p>Beschreibung eingeben, Projekt wählen und auf START tippen.</p>
+      <h3>Noch keine Zeiten erfasst</h3>
+      <p>Oben Projekt wählen, Kommentar schreiben, Beginn und Ende eintragen und auf HINZUFÜGEN tippen.</p>
       ${cloudOn() ? '' : '<button class="btn ghost" data-action="load-demo">Demodaten laden</button>'}</div>`;
   }
   const thisWeek = startOfWeek(Date.now());
@@ -303,14 +331,14 @@ function afterTracker() {
     const prev = S.entries.filter(e => e.description === inp.value).sort((a, b) => b.start - a.start)[0];
     if (prev) { Object.assign(d, { projectId: prev.projectId, tagIds: [...prev.tagIds], billable: prev.billable }); save(); render(); }
   });
-  inp.addEventListener('keydown', ev => {
-    if (ev.key !== 'Enter') return;
+  inp.addEventListener('keydown', ev => { // Enter = neue Zeile, Strg+Enter = hinzufügen/starten
+    if (ev.key !== 'Enter' || !(ev.ctrlKey || ev.metaKey)) return;
     ev.preventDefault();
     if (S.running) inp.blur();
-    else if (S.settings.trackMode === 'manual') addManual();
+    else if (S.settings.trackMode !== 'timer') addManual();
     else startTimer(UI.draft);
   });
-  if (S.settings.trackMode === 'manual' && !S.running) {
+  if (S.settings.trackMode !== 'timer' && !S.running) {
     const upd = () => {
       UI.manual = { start: $('#m-start').value, end: $('#m-end').value, date: $('#m-date').value };
       const [s, e] = manualTimes();
@@ -350,8 +378,10 @@ function addManual() {
   const [s, e] = manualTimes();
   if (s == null) return toast('Bitte Beginn, Ende und Datum angeben');
   const d = UI.draft;
+  if (!d.projectId && visibleProjects().some(p => !p.archived) && !confirm('Kein Projekt gewählt. Eintrag trotzdem ohne Projekt speichern?')) return;
   S.entries.push({ id: uid(), description: d.description.trim(), projectId: d.projectId, tagIds: [...d.tagIds], billable: d.billable, start: s, end: e });
-  UI.draft = emptyDraft();
+  // Projekt bleibt für den nächsten Eintrag gewählt; Kommentar, Tags und Ende werden geleert
+  UI.draft = { ...emptyDraft(), projectId: d.projectId, billable: d.billable };
   UI.manual = { date: UI.manual.date, start: UI.manual.end, end: '' };
   save(); render(); toast('Eintrag hinzugefügt');
 }
@@ -522,6 +552,9 @@ function openUserMenu(anchor) {
       <div class="um-who"><b>${esc(name)}</b><span class="muted">${esc(acc?.username || (cloud ? 'Nicht angemeldet' : 'Nur auf diesem Gerät'))}</span></div></div>
     <button class="pp-item" data-m="profile">${ic('cog')} Profil & Einstellungen</button>
     <button class="pp-item" data-m="help">${ic('help')} Hilfe</button>
+    ${baseRole().admin ? `<div class="pp-group">Ansicht testen als …</div>
+      ${Object.entries(PREVIEW).map(([k, [t]]) => `<button class="pp-item ${UI.previewRole === k ? 'sel' : ''}" data-m="pv-${k}">${ic('shield')} ${t}</button>`).join('')}
+      ${UI.previewRole ? `<button class="pp-item" data-m="pv-end">${ic('x')} Vorschau beenden (Administrator)</button>` : ''}` : ''}
     ${cloud && acc ? `<button class="pp-item" data-m="sync">${ic('upload')} Jetzt synchronisieren</button>
       <button class="pp-item danger" data-m="logout">${ic('x')} Abmelden</button>` : ''}
     ${cloud && !acc ? `<button class="pp-item" data-m="login">${ic('users')} Anmelden</button>` : ''}`, pop => {
@@ -531,6 +564,7 @@ function openUserMenu(anchor) {
       closePopover();
       if (m === 'profile') location.hash = '#/settings';
       if (m === 'help') location.hash = '#/help';
+      if (m.startsWith('pv-')) setPreview(m === 'pv-end' ? null : m.slice(3));
       if (m === 'sync') Cloud.sync();
       if (m === 'logout') Cloud.logout();
       if (m === 'login') Cloud.login();
@@ -547,8 +581,8 @@ function openEntryModal(id) {
 function renderEntryModal() {
   const d = UI.modalDraft;
   openModal(`<h2>Zeiteintrag bearbeiten</h2>
-    <label class="field"><span>Kommentar – was genau wurde gemacht?</span><textarea id="md-desc" rows="4" placeholder="z. B. Begehung Heizraum mit Hausmeister, Mängel an Pumpe P2 aufgenommen">${esc(d.description)}</textarea></label>
     <div class="field"><span>Projekt</span><button class="select-btn" data-action="pick-project" data-target="modal">${projLabel(d.projectId, 'Projekt wählen')}</button></div>
+    <label class="field"><span>Kommentar – was genau wurde gemacht?</span><textarea id="md-desc" class="ef-comment" rows="4" placeholder="z. B. Begehung Heizraum mit Hausmeister, Mängel an Pumpe P2 aufgenommen">${esc(d.description)}</textarea></label>
     <div class="field"><span>Tags</span><button class="select-btn" data-action="pick-tags" data-target="modal">${tagsLabel(d.tagIds)}</button></div>
     <label class="check"><input type="checkbox" id="md-bill" ${d.billable ? 'checked' : ''}> Abrechenbar</label>
     <div class="row3">
@@ -633,7 +667,12 @@ function reportRange() {
 }
 
 function reportSource(from, to) {
-  if (UI.report.scope === 'team' && window.Cloud?.signedIn()) return Cloud.teamEntries(from, to);
+  if (UI.report.scope === 'team' && window.Cloud?.signedIn()) {
+    const t = Cloud.teamEntries(from, to);
+    // Vorschau als Projektleiter: wie beim echten Projektleiter nur Zeiten seiner Projekte (und eigene)
+    if (role().preview === 'pl') return { ...t, list: t.list.filter(e => e.userId === meId() || proj(e.projectId)?.leadId === meId()) };
+    return t;
+  }
   return { status: 'ok', list: S.entries };
 }
 function reportEntries(from, to, src = reportSource(from, to)) {
@@ -891,9 +930,11 @@ async function downloadFile(content, name, type) {
 /* =====================================================================
    Projekte, Kunden, Tags
    ===================================================================== */
+const canTrack = () => { const r = role(); return !!(r.local || r.admin || r.ma || r.pl); };
 function viewProjects() {
   return `<div class="page">
-    <div class="page-head"><h1>Projekte</h1>${canCreateProject() ? `<button class="btn primary" data-action="new-project">${ic('plus')} NEUES PROJEKT</button>` : ''}</div>
+    <div class="page-head"><h1>${canSeeAllProjects() ? 'Projekte' : 'Meine Projekte'}</h1>${canCreateProject() ? `<button class="btn primary" data-action="new-project">${ic('plus')} NEUES PROJEKT</button>` : ''}</div>
+    ${canTrack() ? '<p class="page-hint">Auf einen <b>Projektnamen</b> klicken, um Zeiten für dieses Projekt einzutragen.</p>' : ''}
     <div class="card">
       <div class="toolbar">
         <input type="search" id="proj-q" placeholder="Projekt suchen…" value="${esc(UI.projQ)}">
@@ -914,14 +955,16 @@ function projectTableHTML() {
     <thead><tr><th>Name</th><th class="hide-mobile">Kunde</th>${cloud ? '<th class="hide-mobile">Projektleiter</th><th class="hide-mobile">Team</th>' : ''}<th class="num">${cloud ? 'Meine Zeit' : 'Erfasst'}</th>${money ? '<th class="num hide-mobile">Stundensatz</th>' : ''}<th></th></tr></thead>
     <tbody>${list.map(p => {
       const es = S.entries.filter(e => e.projectId === p.id), edit = canEditProject(p), team = cloud && canEditTeam(p), tn = teamNames(p);
+      const open = canTrack() && !p.archived; // Klick auf den Namen → Zeiterfassung für dieses Projekt
       return `<tr class="${p.archived ? 'archived' : ''}">
-        <td><button class="name-cell" ${edit ? `data-action="edit-project" data-id="${p.id}"` : team ? `data-action="edit-team" data-id="${p.id}"` : ''}><span class="dot" style="background:${p.color}"></span>${esc(p.name)}${p.archived ? ` <span class="chip lock-chip">${ic('lock')} abgeschlossen</span>` : ''}${money && p.billable && p.rate == null ? ' <span class="chip warn">Stundensatz fehlt</span>' : ''}${cloud && admin && !p.listId ? ' <span class="chip">Rechte ausstehend</span>' : ''}</button></td>
+        <td><button class="name-cell ${open ? 'name-open' : ''}" ${open ? `data-action="open-project" data-id="${p.id}" title="Zeit für dieses Projekt eintragen"` : edit ? `data-action="edit-project" data-id="${p.id}"` : ''}><span class="dot" style="background:${p.color}"></span>${esc(p.name)}${p.archived ? ` <span class="chip lock-chip">${ic('lock')} abgeschlossen</span>` : ''}${money && p.billable && p.rate == null ? ' <span class="chip warn">Stundensatz fehlt</span>' : ''}${cloud && admin && !p.listId ? ' <span class="chip">Rechte ausstehend</span>' : ''}</button></td>
         <td class="hide-mobile">${esc(client(p.clientId)?.name || '–')}</td>
         ${cloud ? `<td class="hide-mobile">${p.leadName ? esc(p.leadName) : '<span class="warn-text">fehlt</span>'}</td>
           <td class="hide-mobile" title="${esc(tn.join(', '))}">${tn.length ? tn.length + (tn.length === 1 ? ' Person' : ' Personen') : '<span class="muted">–</span>'}</td>` : ''}
         <td class="num">${fmtDur(sum(es))}</td>
         ${money ? `<td class="num hide-mobile">${p.rate != null ? fmtMoney(Number(p.rate)) : p.billable ? '<span class="warn-text">fehlt</span>' : '<span class="muted">–</span>'}</td>` : ''}
         <td class="act">
+          ${open ? `<button class="icon-btn" data-action="open-project" data-id="${p.id}" title="Zeit eintragen">${ic('clock')}</button>` : ''}
           ${team ? `<button class="icon-btn" data-action="edit-team" data-id="${p.id}" title="Team zuordnen">${ic('users')}</button>` : ''}
           ${edit ? `<button class="icon-btn" data-action="edit-project" data-id="${p.id}" title="Bearbeiten">${ic('edit')}</button>
           <button class="icon-btn" data-action="archive-project" data-id="${p.id}" title="${p.archived ? 'Projekt wieder öffnen' : 'Projekt abschließen (archivieren)'}">${ic(p.archived ? 'upload' : 'archive')}</button>` : ''}
@@ -1136,7 +1179,7 @@ async function downloadTeamsPackage() {
       description: { short: 'Arbeitszeiten je Projekt erfassen und auswerten', full: 'Timer und manuelle Zeiterfassung je Projekt mit Tags und Kommentar, Berichte und Export. Daten liegen in SharePoint im eigenen Microsoft 365.' },
       icons: { color: 'color.png', outline: 'outline.png' },
       accentColor: '#03A9F4',
-      staticTabs: [{ entityId: 'zeiterfassung', name: 'Zeiterfassung', contentUrl: base + '?teams=1#/tracker', websiteUrl: base, scopes: ['personal'] }],
+      staticTabs: [{ entityId: 'zeiterfassung', name: 'Zeiterfassung', contentUrl: base + '?teams=1#/projects', websiteUrl: base, scopes: ['personal'] }],
       permissions: ['identity'],
       validDomains: [location.host]
     };
@@ -1353,6 +1396,16 @@ const ACTIONS = {
   },
   'user-add': () => openUserAdd(),
   'edit-team': el => openTeamModal(el.dataset.id),
+  'preview-end': () => setPreview(null),
+  'open-project': el => { // Projekt aus der Übersicht → Zeiterfassung mit vorgewähltem Projekt
+    const p = proj(el.dataset.id);
+    if (!p) return;
+    const d = S.running || UI.draft;
+    if (!S.running) { d.projectId = p.id; d.billable = !!p.billable; }
+    location.hash = '#/tracker';
+    setTimeout(() => { window.scrollTo(0, 0); $('#tb-desc')?.focus(); }, 50);
+    if (S.running) toast('Es läuft noch ein Timer – bitte zuerst stoppen.');
+  },
   'teams-package': () => downloadTeamsPackage(),
   'perm-apply': () => { Cloud.reconcile(); render(); },
   'cloud-login': () => Cloud.login(),
