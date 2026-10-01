@@ -1,11 +1,15 @@
 # Zeiterfassung – Änderungsprotokoll
 
-Aktuelles Release: **1.9.5** vom 30.09.2026
+Aktuelles Release: **1.9.6** vom 01.10.2026
 
 Nummerierung: *Hauptversion.Funktion.Korrektur*. Neue Funktionen erhöhen die mittlere Zahl, reine Korrekturen die letzte.
 Die gleiche Liste ist in der App unter **Einstellungen → Über diese App → Änderungsprotokoll anzeigen** zu sehen (Quelle: `version.js`).
 
 ---
+
+## 1.9.6 – 01.10.2026 – Namenssuche ab dem ersten Buchstaben
+- Benutzer hinzufügen: Vorschläge schon nach dem ersten Buchstaben; Suche auch nach Vor- und Nachnamen einzeln, Treffer alphabetisch.
+- Geänderte Dateien: `app.js`, `cloud.js`, `version.js`, `sw.js`, `CHANGELOG.md`
 
 ## 1.9.5 – 30.09.2026 – Automatischer Update-Hinweis, Diktieren in Teams
 - Hinweis „Neue Version verfügbar – Jetzt aktualisieren“, sobald auf dem Server eine neuere Version liegt.

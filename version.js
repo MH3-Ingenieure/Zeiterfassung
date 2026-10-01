@@ -5,10 +5,16 @@
    CHANGELOG.md und den Cache-Namen in sw.js mitziehen.
    Nummerierung: Hauptversion.Funktion.Korrektur (z. B. 1.9.1)
    ===================================================================== */
-const APP_VERSION = '1.9.5';
-const APP_RELEASE_DATE = '30.09.2026';
+const APP_VERSION = '1.9.6';
+const APP_RELEASE_DATE = '01.10.2026';
 
 const CHANGELOG = [
+  {
+    v: '1.9.6', date: '01.10.2026', title: 'Namenssuche ab dem ersten Buchstaben', items: [
+      'Benutzer hinzufügen: Vorschläge erscheinen schon nach dem ersten Buchstaben.',
+      'Gesucht wird auch nach Vor- und Nachnamen einzeln („M“ findet z. B. auch „Hans Müller“); Treffer alphabetisch sortiert.'
+    ]
+  },
   {
     v: '1.9.5', date: '30.09.2026', title: 'Automatischer Update-Hinweis, Diktieren in Teams', items: [
       'Liegt auf dem Server eine neuere Version, zeigt die App unten den Hinweis „Neue Version verfügbar – Jetzt aktualisieren“ (wichtig für Teams, das die App lange geöffnet hält).',

@@ -1221,24 +1221,28 @@ function setActive(id, on) {
 function openUserAdd() {
   openModal(`<h2>Benutzer hinzufügen</h2>
     <label class="field"><span>Name oder E-Mail (aus Microsoft 365)</span><input id="us-q" placeholder="z. B. Müller" autocomplete="off"></label>
-    <div id="us-res" class="us-res"><p class="muted">Mindestens 2 Zeichen eingeben.</p></div>
+    <div id="us-res" class="us-res"><p class="muted">Anfangsbuchstaben von Vor- oder Nachname eintippen.</p></div>
     <div class="modal-actions"><span class="grow"></span><button class="btn ghost" data-action="close-modal">Schließen</button></div>`, m => {
     const q = $('#us-q', m), res = $('#us-res', m);
-    let t, found = [];
+    let t, found = [], seq = 0;
     q.focus();
     q.addEventListener('input', () => {
       clearTimeout(t);
       t = setTimeout(async () => {
-        if (q.value.trim().length < 2) { res.innerHTML = '<p class="muted">Mindestens 2 Zeichen eingeben.</p>'; return; }
-        res.innerHTML = '<p class="muted">Suche …</p>';
-        try { found = await Cloud.searchUsers(q.value); }
-        catch (e) { res.innerHTML = `<p class="warn-text">${esc(e.message)}</p>`; return; }
+        if (!q.value.trim()) { res.innerHTML = '<p class="muted">Anfangsbuchstaben von Vor- oder Nachname eintippen.</p>'; return; }
+        const my = ++seq; // nur die Antwort zur letzten Eingabe anzeigen
+        if (!found.length) res.innerHTML = '<p class="muted">Suche …</p>';
+        let list;
+        try { list = await Cloud.searchUsers(q.value); }
+        catch (e) { if (my === seq) res.innerHTML = `<p class="warn-text">${esc(e.message)}</p>`; return; }
+        if (my !== seq) return;
+        found = list.sort((a, b) => (a.name || '').localeCompare(b.name || '', 'de'));
         res.innerHTML = found.length ? found.map((u, i) => {
           const exists = S.roles.some(r => r.id === u.id);
           return `<button class="pp-item" data-i="${i}" ${exists ? 'disabled' : ''}><span class="avatar">${esc((u.name || '?').split(/\s+/).slice(0, 2).map(w => w[0]).join('').toUpperCase())}</span>
             <span><b>${esc(u.name)}</b><br><span class="muted small">${esc(u.mail)}</span></span>${exists ? '<span class="chip">bereits vorhanden</span>' : ''}</button>`;
         }).join('') : '<p class="muted">Niemand gefunden.</p>';
-      }, 300);
+      }, 200);
     });
     res.addEventListener('click', ev => {
       const b = ev.target.closest('[data-i]');

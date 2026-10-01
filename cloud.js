@@ -753,8 +753,10 @@ const Cloud = (() => {
   /* ---------- Benutzersuche im Microsoft-365-Verzeichnis ---------- */
   async function searchUsers(q) {
     q = q.trim().replace(/'/g, "''");
-    if (q.length < 2) return [];
-    const d = await g(`/users?$filter=startswith(displayName,'${q}') or startswith(mail,'${q}') or startswith(userPrincipalName,'${q}')&$select=id,displayName,mail,userPrincipalName&$top=15`);
+    if (!q) return [];
+    // ab dem ersten Buchstaben; Vor- und Nachname einzeln, damit „M“ auch „Hans Müller“ findet
+    const f = ['displayName', 'givenName', 'surname', 'mail', 'userPrincipalName'].map(k => `startswith(${k},'${encodeURIComponent(q)}')`).join(' or ');
+    const d = await g(`/users?$filter=${f}&$select=id,displayName,mail,userPrincipalName&$top=25`);
     return d.value.map(u => ({ id: u.id, name: u.displayName, upn: u.userPrincipalName, mail: u.mail || u.userPrincipalName }));
   }
 
