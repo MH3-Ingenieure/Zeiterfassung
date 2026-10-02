@@ -5,10 +5,19 @@
    CHANGELOG.md und den Cache-Namen in sw.js mitziehen.
    Nummerierung: Hauptversion.Funktion.Korrektur (z. B. 1.9.1)
    ===================================================================== */
-const APP_VERSION = '1.9.6';
-const APP_RELEASE_DATE = '01.10.2026';
+const APP_VERSION = '1.10.0';
+const APP_RELEASE_DATE = '02.10.2026';
 
 const CHANGELOG = [
+  {
+    v: '1.10.0', date: '02.10.2026', title: 'Berichtsfilter und Export wie Clockify, Benutzerliste, Update-Hinweis', items: [
+      'Berichte: Filterfenster mit Diese Woche, Letzte Woche, Letzte zwei Wochen, Diesen Monat, Letzten Monat, Dieses Jahr, Letztes Jahr, Benutzerdefiniert sowie Team, Kunde, Projekt, Tag (Mehrfachauswahl) und „Nur abrechenbare Zeiten“.',
+      'Berichte: „Exportieren“ mit Als PDF speichern, Als CSV speichern und Als Excel speichern (.xlsx).',
+      'Benutzer & Rollen: Suchfeld und Auswahl Alle/Aktiv/Inaktiv; ausgeschiedene Benutzer durchgestrichen, E-Mail unter dem Namen.',
+      'Projekte: „Neues Projekt“ unter dem Suchfeld; „Zeit diktieren“ rot und oval (auch in der Zeiterfassung).',
+      'Neue Version verfügbar: Die Wolke oben rechts wird rot und zeigt „Update“; ein Klick aktualisiert die App. Die App prüft alle 30 Minuten auf Updates.'
+    ]
+  },
   {
     v: '1.9.6', date: '01.10.2026', title: 'Namenssuche ab dem ersten Buchstaben', items: [
       'Benutzer hinzufügen: Vorschläge erscheinen schon nach dem ersten Buchstaben.',

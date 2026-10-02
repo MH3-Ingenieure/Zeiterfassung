@@ -90,9 +90,10 @@ const Cloud = (() => {
     el.hidden = !enabled;
     if (!enabled) return;
     const [long, short] = STATES[state];
-    el.className = 'sync-status s-' + state;
-    el.title = long + (message ? ': ' + message : '');
-    el.innerHTML = `<svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 18a4.5 4.5 0 0 1-.6-8.96A6 6 0 0 1 18 9a4.5 4.5 0 0 1-.5 9z"/></svg><span>${short}</span>`;
+    const upd = window.APP_UPDATE; // neue Version auf dem Server → Hinweis an der Wolke
+    el.className = 'sync-status s-' + state + (upd ? ' has-update' : '');
+    el.title = (upd ? `Neue Version ${upd} verfügbar – zum Aktualisieren klicken. ` : '') + long + (message ? ': ' + message : '');
+    el.innerHTML = `<svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 18a4.5 4.5 0 0 1-.6-8.96A6 6 0 0 1 18 9a4.5 4.5 0 0 1-.5 9z"/></svg><span>${upd ? 'Update ' + upd : short}</span>${upd ? '<i class="upd-dot"></i>' : ''}`;
   }
 
   /* ---------- Microsoft Teams (App in der Teams-Leiste) ---------- */
@@ -778,6 +779,7 @@ const Cloud = (() => {
     enabled, init, sync, changed, login, logout, teamEntries, settingsHTML, searchUsers, myRole, ROLE_NAMES,
     signedIn: () => enabled && !!account,
     inTeams: () => teamsMode,
+    repaint: () => paint(),
     config: () => ({ ...cfg }),
     account: () => account,
     meId: () => S.sync?.userId || null,

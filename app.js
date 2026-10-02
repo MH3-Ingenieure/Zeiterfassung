@@ -44,7 +44,9 @@ const UI = {
   weeksShown: 3,
   projQ: '', showArchived: false,
   modalDraft: null,
-  report: { scope: 'me', userId: '', range: 'week', offset: 0, from: '', to: '', groupBy: 'project', projectId: '', clientId: '', tagId: '', billable: '', q: '' }
+  // Filter wie in Clockify: Zeitraum + Team/Kunde/Projekt/Tag (Mehrfachauswahl) + nur abrechenbar
+  report: { range: 'week', offset: 0, from: '', to: '', groupBy: 'project', userIds: [], clientIds: [], projectIds: [], tagIds: [], billOnly: false, q: '' },
+  userQ: '', userSeg: 'all'
 };
 function emptyDraft() { return { description: '', projectId: null, tagIds: [], billable: false }; }
 
@@ -126,6 +128,8 @@ const P = {
   chevL: '<path d="M15 6l-6 6 6 6"/>',
   chevR: '<path d="M9 6l6 6-6 6"/>',
   printer: '<path d="M7 9V3h10v6M7 17H4V9h16v8h-3M7 14h10v7H7z"/>',
+  filter: '<path d="M3 5h18l-7 8.5V19l-4 2v-7.5z"/>',
+  check: '<path d="M5 12.5l4.5 4.5L19 7"/>',
   edit: '<path d="M4 20h4L20 8l-4-4L4 16z"/>',
   archive: '<path d="M3 4h18v4H3zM5 8v12h14V8M10 12h4"/>',
   shield: '<path d="M12 3l8 3v6c0 4.5-3.4 8.3-8 9-4.6-.7-8-4.5-8-9V6z"/><path d="M9 12l2 2 4-4"/>',
@@ -158,7 +162,7 @@ function setPreview(r) {
   UI.previewRole = PREVIEW[r] ? r : null;
   try { UI.previewRole ? sessionStorage.setItem('zeiterfassung.preview', r) : sessionStorage.removeItem('zeiterfassung.preview'); } catch { }
   if (window.Cloud?.refreshTeam) Cloud.refreshTeam();
-  UI.report.scope = 'me'; UI.report.userId = ''; UI.report.groupBy = 'project';
+  UI.report.userIds = []; UI.report.groupBy = 'project';
   location.hash = '#/projects'; render();
   toast(UI.previewRole ? `Vorschau: Ansicht als ${PREVIEW[r][0]}` : 'Vorschau beendet – wieder Administrator');
 }
@@ -193,7 +197,7 @@ function renderNav() {
 }
 
 const VIEWS = { tracker: viewTracker, reports: viewReports, projects: viewProjects, clients: () => viewList('clients'), tags: () => viewList('tags'), users: viewUsers, settings: viewSettings, help: () => viewHelp() };
-const AFTER = { tracker: afterTracker, projects: afterProjects, help: () => afterHelp() };
+const AFTER = { tracker: afterTracker, projects: afterProjects, users: afterUsers, help: () => afterHelp() };
 
 function render() {
   const r = location.hash.replace(/^#\/?/, '') || 'projects';
@@ -230,7 +234,7 @@ function timerBarHTML() {
   const m = UI.manual;
   return `<div class="card entry-form ${r ? 'running' : ''}">
     <div class="ef-title">${r ? `${ic('clock')} Timer läuft` : manual ? 'Zeit eintragen' : `${ic('clock')} Zeit mit Timer erfassen`}
-      ${r ? '' : `<button class="btn ghost small ef-dict" data-action="dictate">${ic('mic')} diktieren</button>`}</div>
+      ${r ? '' : `<button class="btn small dz-btn ef-dict" data-action="dictate">${ic('mic')} diktieren</button>`}</div>
     <div class="ef-field">
       <span class="ef-label">Projekt</span>
       <button class="ef-proj" data-action="pick-project" data-target="timer">${projLabel(d.projectId, 'Projekt wählen')}<span class="ef-change">${d.projectId ? 'ändern' : ''}</span></button>
@@ -657,6 +661,10 @@ function reportRange() {
       from = new Date(y, 0, 1).getTime(); to = new Date(y + 1, 0, 1).getTime(); label = String(y);
       break;
     }
+    case 'twoweeks': // letzte und diese Woche
+      from = addDays(startOfWeek(now), 14 * R.offset - 7); to = addDays(from, 14);
+      label = R.offset === 0 ? 'Letzte zwei Wochen' : `${fmtD(from)} – ${fmtD(addDays(to, -1))}`;
+      break;
     case 'custom':
       if (!R.from || !R.to) { R.from = dateStr(startOfWeek(now)); R.to = dateStr(addDays(startOfWeek(now), 6)); }
       from = parseDT(R.from); to = addDays(parseDT(R.to), 1);
@@ -670,8 +678,16 @@ function reportRange() {
   return { from, to, label };
 }
 
+// Zeitraum-Vorgaben wie in Clockify; Pfeile blättern innerhalb der Art (Woche, Monat, Jahr …)
+const PRESETS = [
+  ['thisweek', 'Diese Woche', 'week', 0], ['lastweek', 'Letzte Woche', 'week', -1], ['twoweeks', 'Letzte zwei Wochen', 'twoweeks', 0],
+  ['thismonth', 'Diesen Monat', 'month', 0], ['lastmonth', 'Letzten Monat', 'month', -1],
+  ['thisyear', 'Dieses Jahr', 'year', 0], ['lastyear', 'Letztes Jahr', 'year', -1], ['custom', 'Benutzerdefiniert', 'custom', 0]];
+const presetOf = R => PRESETS.find(p => p[2] === R.range && (R.range === 'custom' || p[3] === R.offset))?.[0] || '';
+// Team-Filter: [] = nur eigene Zeiten, ['*'] = alle, sonst die gewählten Personen
+const isTeamScope = R => canTeam() && R.userIds.length > 0 && !(R.userIds.length === 1 && R.userIds[0] === meId());
 function reportSource(from, to) {
-  if (UI.report.scope === 'team' && window.Cloud?.signedIn()) {
+  if (isTeamScope(UI.report) && window.Cloud?.signedIn()) {
     const t = Cloud.teamEntries(from, to);
     // Vorschau als Projektleiter: wie beim echten Projektleiter nur Zeiten seiner Projekte (und eigene)
     if (role().preview === 'pl') return { ...t, list: t.list.filter(e => e.userId === meId() || proj(e.projectId)?.leadId === meId()) };
@@ -681,13 +697,15 @@ function reportSource(from, to) {
 }
 function reportEntries(from, to, src = reportSource(from, to)) {
   const R = UI.report, q = R.q.trim().toLowerCase();
+  const users = isTeamScope(R) && !R.userIds.includes('*') ? new Set(R.userIds) : null;
+  const pids = new Set(R.projectIds), cids = new Set(R.clientIds), tids = new Set(R.tagIds);
   return src.list.filter(e =>
     e.start >= from && e.start < to &&
-    (!R.userId || R.scope !== 'team' || e.userId === R.userId) &&
-    (!R.projectId || (R.projectId === 'none' ? !proj(e.projectId) : e.projectId === R.projectId)) &&
-    (!R.clientId || (R.clientId === 'none' ? !proj(e.projectId)?.clientId : proj(e.projectId)?.clientId === R.clientId)) &&
-    (!R.tagId || e.tagIds.includes(R.tagId)) &&
-    (R.billable === '' || String(e.billable) === R.billable) &&
+    (!users || users.has(e.userId)) &&
+    (!pids.size || pids.has(proj(e.projectId) ? e.projectId : 'none')) &&
+    (!cids.size || cids.has(proj(e.projectId)?.clientId || 'none')) &&
+    (!tids.size || e.tagIds.some(t => tids.has(t))) &&
+    (!R.billOnly || e.billable) &&
     (!q || e.description.toLowerCase().includes(q))
   ).sort((a, b) => a.start - b.start);
 }
@@ -783,46 +801,35 @@ function donutSVG(groups) {
 
 function viewReports() {
   const R = UI.report, { from, to, label } = reportRange();
-  const teamOk = canTeam(), money = canSeeRates();
-  if (!teamOk) R.scope = 'me';
-  const teamLabel = role().admin || role().bh ? 'Alle Mitarbeiter' : 'Team meiner Projekte';
-  const isTeam = R.scope === 'team';
+  const money = canSeeRates();
+  if (!canTeam()) R.userIds = [];
+  const isTeam = isTeamScope(R);
   if (!isTeam && R.groupBy === 'user') R.groupBy = 'project';
   const src = reportSource(from, to), list = reportEntries(from, to, src);
   const users = reportPeople(isTeam ? src.list : []);
+  const fs = filterSummary(users), nF = fs.filter(x => x[0] !== 'team').length;
   const note = src.status === 'loading' ? '<div class="card rep-note">Lade Daten aller Mitarbeiter aus SharePoint …</div>'
     : src.status === 'error' ? `<div class="card rep-note err">Teamdaten konnten nicht geladen werden: ${esc(src.error)}</div>` : '';
   const total = sum(list), billMs = sum(list.filter(e => e.billable)), amount = list.reduce((a, e) => a + amountOf(e), 0);
   const groups = groupEntries(list, R.groupBy), gsum = groups.reduce((a, g) => a + g.ms, 0) || 1;
   const opt = (v, t, cur) => `<option value="${esc(v)}" ${String(v) === String(cur) ? 'selected' : ''}>${esc(t)}</option>`;
-  const sel = (name, first, items) => `<select name="${name}" data-change="rep">${opt('', first, R[name])}${items.map(([v, t]) => opt(v, t, R[name])).join('')}</select>`;
   const rows = list.slice().reverse();
   return `<div class="page">
     <div class="page-head"><h1>Berichte</h1>
-      <button class="btn ghost small no-print" data-action="rep-csv">${ic('download')} CSV</button>
-      <button class="btn ghost small no-print" data-action="rep-print">${ic('printer')} PDF / Drucken</button>
+      <button class="btn ghost small no-print" data-action="rep-export">${ic('download')} Exportieren</button>
     </div>
     ${printHeadHTML(label, from, to, isTeam, users)}
     <div class="card rep-bar no-print">
       <div class="rep-row">
-        ${teamOk ? `<label class="rep-person"><span>Person</span><select data-change="rep-person">
-            ${opt('me', 'Nur ich (' + (S.settings.userName || 'eigene Zeiten') + ')', !isTeam ? 'me' : '')}
-            ${opt('team', teamLabel + ' (alle zusammen)', isTeam && !R.userId ? 'team' : '')}
-            <optgroup label="Einzelne Person">${users.filter(([id]) => id !== meId()).map(([id, n]) => opt('u:' + id, n, isTeam && R.userId === id ? 'u:' + id : '')).join('')}</optgroup>
-          </select></label>
-          ${isTeam ? '<button class="icon-btn" data-action="team-refresh" title="Daten neu laden">⟳</button>' : ''}` : ''}
-        <select name="range" data-change="rep">${[['day', 'Tag'], ['week', 'Woche'], ['month', 'Monat'], ['year', 'Jahr'], ['custom', 'Zeitraum']].map(([v, t]) => opt(v, t, R.range)).join('')}</select>
+        <button class="btn primary small rep-filter-btn" data-action="rep-filter">${ic('filter')} Filter${nF ? ` <span class="rep-badge">${nF}</span>` : ''}</button>
         ${R.range === 'custom'
-          ? `<input type="date" name="from" data-change="rep" value="${R.from}"><span>–</span><input type="date" name="to" data-change="rep" value="${R.to}">`
+          ? `<span class="range-label">${esc(label)}</span>`
           : `<div class="range-nav"><button class="icon-btn" data-action="rep-shift" data-d="-1" aria-label="Zurück">${ic('chevL')}</button><span class="range-label">${esc(label)}</span><button class="icon-btn" data-action="rep-shift" data-d="1" aria-label="Weiter">${ic('chevR')}</button></div>`}
+        ${isTeam ? '<button class="icon-btn" data-action="team-refresh" title="Daten neu laden">⟳</button>' : ''}
       </div>
-      <div class="rep-row">
-        ${sel('projectId', 'Alle Projekte', [['none', 'Ohne Projekt'], ...[...(isTeam || canSeeAllProjects() ? S.projects : visibleProjects())].sort(byName).map(p => [p.id, p.name])])}
-        ${sel('clientId', 'Alle Kunden', [['none', 'Ohne Kunde'], ...[...S.clients].sort(byName).map(c => [c.id, c.name])])}
-        ${sel('tagId', 'Alle Tags', [...S.tags].sort(byName).map(t => [t.id, t.name]))}
-        ${sel('billable', 'Abrechenbar & nicht', [['true', 'Nur abrechenbar'], ['false', 'Nur nicht abrechenbar']])}
-        <input type="search" name="q" data-change="rep" value="${esc(R.q)}" placeholder="Beschreibung suchen…">
-      </div>
+      <div class="rep-chips">${fs.map(([k, v]) => `<button class="chip rep-chip" data-action="rep-filter" data-page="${k}">${esc(v)}</button>`).join('')}
+        ${nF ? '<button class="chip rep-clear" data-action="rep-clear">Filter zurücksetzen</button>' : ''}</div>
+      <div class="rep-row"><input type="search" name="q" data-change="rep" value="${esc(R.q)}" placeholder="Beschreibung suchen…" class="rep-q"></div>
     </div>
     ${note}
     <div class="stats ${money ? '' : 'two'}">
@@ -881,13 +888,21 @@ function reportPeople(entries = []) {
 }
 
 // Firmenkopf für Druck / PDF: Logo, Titel, Zeitraum, gewählte Filter, Erstellungsdatum
+// Aktive Filter als Text [Seite im Filterfenster, Beschreibung]; erster Eintrag = Person(en)
+function filterSummary(users = reportPeople(), forPrint = false) {
+  const R = UI.report, f = [], names = (ids, look, none) => ids.map(id => id === 'none' ? none : look(id)).filter(Boolean);
+  const list = (title, arr) => title + ': ' + (arr.length > 2 ? arr.slice(0, 2).join(', ') + ` +${arr.length - 2}` : arr.join(', '));
+  const all = role().admin || role().bh ? 'Alle Mitarbeiter' : 'Team meiner Projekte';
+  if (canTeam() || forPrint) f.push(['team', !isTeamScope(R) ? (forPrint ? 'Mitarbeiter: ' + (S.settings.userName || '–') : 'Nur ich (' + (S.settings.userName || 'eigene Zeiten') + ')') : R.userIds.includes('*') ? all
+    : list('Team', names(R.userIds, id => id === meId() ? (S.settings.userName || 'ich') : users.find(u => u[0] === id)?.[1] || S.roles.find(u => u.id === id)?.name))]);
+  if (R.clientIds.length) f.push(['client', list('Kunde', names(R.clientIds, id => client(id)?.name, 'ohne Kunde'))]);
+  if (R.projectIds.length) f.push(['project', list('Projekt', names(R.projectIds, id => proj(id)?.name, 'ohne Projekt'))]);
+  if (R.tagIds.length) f.push(['tag', list('Tag', names(R.tagIds, id => tag(id)?.name))]);
+  if (R.billOnly) f.push(['', 'nur abrechenbar']);
+  return f;
+}
 function printHeadHTML(label, from, to, isTeam, users) {
-  const R = UI.report, f = [];
-  f.push(isTeam ? (R.userId ? 'Mitarbeiter: ' + (users.find(u => u[0] === R.userId)?.[1] || '') : (role().admin || role().bh ? 'Alle Mitarbeiter' : 'Team meiner Projekte')) : 'Mitarbeiter: ' + (S.settings.userName || '–'));
-  if (R.projectId) f.push('Projekt: ' + (R.projectId === 'none' ? 'ohne Projekt' : proj(R.projectId)?.name || ''));
-  if (R.clientId) f.push('Kunde: ' + (R.clientId === 'none' ? 'ohne Kunde' : client(R.clientId)?.name || ''));
-  if (R.tagId) f.push('Tag: ' + (tag(R.tagId)?.name || ''));
-  if (R.billable) f.push(R.billable === 'true' ? 'nur abrechenbar' : 'nur nicht abrechenbar');
+  const R = UI.report, f = filterSummary(users, true).map(x => x[1]);
   if (R.q.trim()) f.push('Suche: „' + R.q.trim() + '“');
   const range = `${fmtD(from)} – ${fmtD(addDays(to, -1))}`;
   return `<div class="print-head">
@@ -901,19 +916,141 @@ function printHeadHTML(label, from, to, isTeam, users) {
   </div>`;
 }
 
-function exportCSV() {
-  const { from, to, label } = reportRange(), list = reportEntries(from, to);
-  const num = v => v.toFixed(2).replace('.', ',');
-  const money = canSeeRates();
-  const rows = [['Datum', 'Beginn', 'Ende', 'Dauer (h:mm:ss)', 'Dauer (Stunden)', 'Beschreibung', 'Projekt', 'Kunde', 'Tags', 'Abrechenbar', ...(money ? ['Stundensatz', 'Betrag'] : []), 'Mitarbeiter']];
-  for (const e of list) {
+// Tabelle für CSV und Excel (Zahlen bleiben Zahlen, damit Excel rechnen kann)
+function reportTable() {
+  const { from, to, label } = reportRange(), list = reportEntries(from, to), money = canSeeRates();
+  const head = ['Datum', 'Beginn', 'Ende', 'Dauer (h:mm:ss)', 'Dauer (Stunden)', 'Beschreibung', 'Projekt', 'Kunde', 'Tags', 'Abrechenbar', ...(money ? ['Stundensatz', 'Betrag'] : []), 'Mitarbeiter'];
+  const rows = list.map(e => {
     const p = proj(e.projectId), c = client(p?.clientId);
-    rows.push([fmtD(e.start), fmtTime(e.start), fmtTime(e.end), fmtClock(dur(e)), num(dur(e) / HOUR), e.description,
+    return [fmtD(e.start), fmtTime(e.start), fmtTime(e.end), fmtClock(dur(e)), +(dur(e) / HOUR).toFixed(2), e.description,
       p?.name || '', c?.name || '', e.tagIds.map(tag).filter(Boolean).map(t => t.name).join(', '),
-      e.billable ? 'Ja' : 'Nein', ...(money ? [num(rateOf(e)), num(amountOf(e))] : []), e.userName || S.settings.userName]);
-  }
-  const csv = rows.map(r => r.map(v => { v = String(v ?? ''); return /[;"\n\r]/.test(v) ? '"' + v.replace(/"/g, '""') + '"' : v; }).join(';')).join('\r\n');
-  downloadFile('﻿' + csv, `Stundenbericht_${label.replace(/[^\wäöüÄÖÜß.-]+/g, '_')}.csv`, 'text/csv;charset=utf-8');
+      e.billable ? 'Ja' : 'Nein', ...(money ? [+rateOf(e).toFixed(2), +amountOf(e).toFixed(2)] : []), e.userName || S.settings.userName];
+  });
+  return { head, rows, file: 'Stundenbericht_' + label.replace(/[^\wäöüÄÖÜß.-]+/g, '_') };
+}
+function exportCSV() {
+  const { head, rows, file } = reportTable();
+  const cell = v => { v = typeof v === 'number' ? v.toFixed(2).replace('.', ',') : String(v ?? ''); return /[;"\n\r]/.test(v) ? '"' + v.replace(/"/g, '""') + '"' : v; };
+  downloadFile('﻿' + [head, ...rows].map(r => r.map(cell).join(';')).join('\r\n'), file + '.csv', 'text/csv;charset=utf-8');
+}
+function exportXLSX() { // echte Excel-Datei (.xlsx) ohne Zusatzbibliothek
+  const { head, rows, file } = reportTable(), enc = new TextEncoder();
+  const x = s => String(s ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c])).replace(/[\x00-\x08\x0b\x0c\x0e-\x1f]/g, '');
+  const col = i => (i >= 26 ? String.fromCharCode(64 + Math.floor(i / 26)) : '') + String.fromCharCode(65 + i % 26);
+  const row = (r, n, s) => `<row r="${n}">${r.map((v, i) => typeof v === 'number'
+    ? `<c r="${col(i)}${n}" s="2"><v>${v}</v></c>`
+    : `<c r="${col(i)}${n}" t="inlineStr"${s ? ` s="${s}"` : ''}><is><t xml:space="preserve">${x(v)}</t></is></c>`).join('')}</row>`;
+  const widths = head.map((h, i) => Math.min(60, Math.max(h.length, ...rows.map(r => String(r[i] ?? '').length)) + 2));
+  const sheet = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><sheetViews><sheetView workbookViewId="0"><pane ySplit="1" topLeftCell="A2" activePane="bottomLeft" state="frozen"/></sheetView></sheetViews><cols>${widths.map((w, i) => `<col min="${i + 1}" max="${i + 1}" width="${w}" customWidth="1"/>`).join('')}</cols><sheetData>${row(head, 1, 1)}${rows.map((r, i) => row(r, i + 2)).join('')}</sheetData><autoFilter ref="A1:${col(head.length - 1)}${rows.length + 1}"/></worksheet>`;
+  const files = {
+    '[Content_Types].xml': '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/><Override PartName="/xl/worksheets/sheet1.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/><Override PartName="/xl/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml"/></Types>',
+    '_rels/.rels': '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/></Relationships>',
+    'xl/workbook.xml': '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><sheets><sheet name="Stundenbericht" sheetId="1" r:id="rId1"/></sheets><definedNames><definedName name="_xlnm._FilterDatabase" localSheetId="0" hidden="1">Stundenbericht!$A$1:$' + col(head.length - 1) + '$' + (rows.length + 1) + '</definedName></definedNames></workbook>',
+    'xl/_rels/workbook.xml.rels': '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet1.xml"/><Relationship Id="rId2" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/></Relationships>',
+    'xl/styles.xml': '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><fonts count="2"><font><sz val="11"/><name val="Calibri"/></font><font><b/><sz val="11"/><name val="Calibri"/></font></fonts><fills count="2"><fill><patternFill patternType="none"/></fill><fill><patternFill patternType="gray125"/></fill></fills><borders count="1"><border><left/><right/><top/><bottom/><diagonal/></border></borders><cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs><cellXfs count="3"><xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0"/><xf numFmtId="0" fontId="1" fillId="0" borderId="0" xfId="0" applyFont="1"/><xf numFmtId="4" fontId="0" fillId="0" borderId="0" xfId="0" applyNumberFormat="1"/></cellXfs></styleSheet>',
+    'xl/worksheets/sheet1.xml': sheet
+  };
+  const zip = makeZip(Object.entries(files).map(([name, s]) => ({ name, data: enc.encode(s) })));
+  downloadFile(zip, file + '.xlsx', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+}
+function openExportMenu(anchor) {
+  openPopover(anchor, `<button class="pp-item" data-x="pdf">${ic('printer')} Als PDF speichern</button>
+    <button class="pp-item" data-x="csv">${ic('download')} Als CSV speichern</button>
+    <button class="pp-item" data-x="xlsx">${ic('download')} Als Excel speichern</button>`, pop => {
+    pop.addEventListener('click', ev => {
+      const b = ev.target.closest('[data-x]');
+      if (!b) return;
+      closePopover();
+      ({ pdf: () => window.print(), csv: exportCSV, xlsx: exportXLSX })[b.dataset.x]();
+    });
+  }, 'menu export-menu');
+}
+
+/* ---------- Filterfenster für Berichte (wie Clockify) ---------- */
+function openReportFilter(startPage = '') {
+  const R = UI.report;
+  const F = { range: R.range, offset: R.offset, from: R.from, to: R.to, billOnly: R.billOnly,
+    userIds: [...R.userIds], clientIds: [...R.clientIds], projectIds: [...R.projectIds], tagIds: [...R.tagIds] };
+  const people = () => { const p = reportPeople(); if (!p.some(u => u[0] === meId())) p.unshift([meId(), S.settings.userName || 'Ich']); return p; };
+  const pages = {
+    team: ['Team', 'userIds', () => people().map(([id, n]) => [id, id === meId() ? n + ' (ich)' : n])],
+    client: ['Kunde', 'clientIds', () => [['none', 'Ohne Kunde'], ...[...S.clients].sort(byName).map(c => [c.id, c.name])]],
+    project: ['Projekt', 'projectIds', () => [['none', 'Ohne Projekt'], ...[...(canSeeAllProjects() || isTeamScope(F) ? S.projects : visibleProjects())].sort(byName).map(p => [p.id, p.name + (client(p.clientId) ? ' – ' + client(p.clientId).name : '')])]],
+    tag: ['Tag (Tätigkeit)', 'tagIds', () => [...S.tags].sort(byName).map(t => [t.id, t.name])]
+  };
+  const rowsOf = () => Object.entries(pages).filter(([k]) => k !== 'team' || canTeam());
+  const summary = k => {
+    const [, key, items] = pages[k], ids = F[key];
+    if (k === 'team') return !isTeamScope(F) ? 'Nur ich' : ids.includes('*') ? 'Alle' : ids.length + ' ausgewählt';
+    if (!ids.length) return 'Alle';
+    if (ids.length === 1) return items().find(i => i[0] === ids[0])?.[1] || '1 ausgewählt';
+    return ids.length + ' ausgewählt';
+  };
+  openModal('<div class="flt"></div>', m => {
+    const box = $('.flt', m);
+    const head = (left, title, right) => `<div class="flt-head">${left}<b>${title}</b>${right}</div>`;
+    const main = () => {
+      const cur = presetOf(F);
+      box.innerHTML = head('<button class="flt-pill" data-f="cancel">Abbrechen</button>', 'Filter', '<button class="flt-pill strong" data-f="apply">Anwenden</button>') + `
+        <div class="flt-group">${PRESETS.map(([k, t]) => `<button class="flt-row" data-preset="${k}"><span>${t}</span>${k === cur ? `<span class="flt-check">${ic('check')}</span>` : ''}</button>`).join('')}</div>
+        ${F.range === 'custom' ? `<div class="flt-group flt-dates"><label>Von <input type="date" data-d="from" value="${F.from}"></label><label>Bis <input type="date" data-d="to" value="${F.to}"></label></div>` : ''}
+        <div class="flt-group">${rowsOf().map(([k, [t]]) => `<button class="flt-row" data-page="${k}"><span>${t}</span><span class="flt-val">${esc(summary(k))} ${ic('chevR')}</span></button>`).join('')}</div>
+        <div class="flt-group"><label class="flt-row"><span>Nur abrechenbare Zeiten</span><input type="checkbox" class="flt-switch" data-f="bill" ${F.billOnly ? 'checked' : ''}></label></div>
+        <button class="flt-reset" data-f="reset">Alle Filter zurücksetzen</button>`;
+    };
+    const sub = k => {
+      const [title, key, items] = pages[k], list = items();
+      const sel = new Set(k === 'team' && !isTeamScope(F) ? [meId()] : F[key]);
+      const allOn = k === 'team' ? sel.has('*') : !sel.size;
+      box.innerHTML = head(`<button class="flt-pill" data-f="back">${ic('chevL')} Zurück</button>`, title, '<span class="flt-pill-space"></span>') + `
+        ${list.length > 8 ? `<input type="search" class="flt-q" placeholder="${title} suchen …" autocomplete="off">` : ''}
+        <div class="flt-group"><label class="flt-row"><span><b>${k === 'team' ? (role().admin || role().bh ? 'Alle Mitarbeiter' : 'Ganzes Team meiner Projekte') : 'Alle'}</b></span><input type="checkbox" data-all ${allOn ? 'checked' : ''}></label>
+        ${list.map(([id, n]) => `<label class="flt-row" data-n="${esc(n.toLowerCase())}"><span>${esc(n)}</span><input type="checkbox" data-id="${esc(id)}" ${!allOn && sel.has(id) ? 'checked' : ''}></label>`).join('') || '<div class="pp-empty">Keine Einträge</div>'}</div>`;
+      const q = $('.flt-q', box);
+      q?.addEventListener('input', () => { const t = q.value.trim().toLowerCase(); $$('[data-n]', box).forEach(l => { l.hidden = t && !l.dataset.n.includes(t); }); });
+      box.onchange = ev => {
+        const c = ev.target;
+        if (c.matches('[data-all]')) {
+          if (k !== 'team') c.checked = true; // „Alle“ = keine Einschränkung, abwählen über einzelne Einträge
+          F[key] = k === 'team' && c.checked ? ['*'] : [];
+          $$('[data-id]', box).forEach(x => { x.checked = false; });
+        } else if (c.matches('[data-id]')) {
+          const ids = $$('[data-id]', box).filter(x => x.checked).map(x => x.dataset.id);
+          F[key] = ids; $('[data-all]', box).checked = k !== 'team' && !ids.length;
+        }
+      };
+    };
+    box.onclick = ev => {
+      const b = ev.target.closest('button[data-preset], button[data-page], [data-f]');
+      if (!b) return;
+      if (b.dataset.preset) {
+        const p = PRESETS.find(x => x[0] === b.dataset.preset);
+        F.range = p[2]; F.offset = p[3];
+        if (F.range === 'custom' && (!F.from || !F.to)) { const r = reportRange(); F.from = dateStr(r.from); F.to = dateStr(addDays(r.to, -1)); }
+        return main();
+      }
+      if (b.dataset.page) { box.onchange = null; return sub(b.dataset.page); }
+      const f = b.dataset.f;
+      if (f === 'cancel') closeModal();
+      else if (f === 'back') { box.onchange = null; main(); }
+      else if (f === 'reset') { Object.assign(F, { range: 'week', offset: 0, billOnly: false, userIds: [], clientIds: [], projectIds: [], tagIds: [] }); main(); }
+      else if (f === 'apply') {
+        const wasTeam = isTeamScope(R);
+        Object.assign(R, F);
+        const team = isTeamScope(R);
+        if (team && !wasTeam) R.groupBy = R.userIds.includes('*') || R.userIds.length > 1 ? 'user' : 'project';
+        if (!team && R.groupBy === 'user') R.groupBy = 'project';
+        closeModal(); render();
+      }
+    };
+    box.addEventListener('change', ev => {
+      const c = ev.target;
+      if (c.dataset.f === 'bill') F.billOnly = c.checked;
+      if (c.dataset.d) F[c.dataset.d] = c.value;
+    });
+    if (startPage && pages[startPage] && (startPage !== 'team' || canTeam())) sub(startPage); else main();
+  });
+  $('#modal-root .modal')?.classList.add('flt-modal');
 }
 
 async function downloadFile(content, name, type) {
@@ -937,13 +1074,14 @@ async function downloadFile(content, name, type) {
 const canTrack = () => { const r = role(); return !!(r.local || r.admin || r.ma || r.pl); };
 function viewProjects() {
   return `<div class="page">
-    <div class="page-head"><h1>${canSeeAllProjects() ? 'Projekte' : 'Meine Projekte'}</h1>${canCreateProject() ? `<button class="btn primary" data-action="new-project">${ic('plus')} NEUES PROJEKT</button>` : ''}</div>
-    ${canTrack() ? `<div class="dz-start"><button class="btn primary dz-btn" data-action="dictate">${ic('mic')} Zeit diktieren</button>
+    <div class="page-head"><h1>${canSeeAllProjects() ? 'Projekte' : 'Meine Projekte'}</h1></div>
+    ${canTrack() ? `<div class="dz-start"><button class="btn dz-btn" data-action="dictate">${ic('mic')} Zeit diktieren</button>
       <span class="page-hint">oder auf einen <b>Projektnamen</b> klicken, um Zeiten für dieses Projekt einzutragen.</span></div>` : ''}
     <div class="card">
       <div class="toolbar">
         <input type="search" id="proj-q" placeholder="Projekt suchen…" value="${esc(UI.projQ)}">
         <label class="check" style="margin:0"><input type="checkbox" data-change="proj-arch" ${UI.showArchived ? 'checked' : ''}> Abgeschlossene anzeigen</label>
+        ${canCreateProject() ? `<div class="toolbar-break"></div><button class="btn primary" data-action="new-project">${ic('plus')} NEUES PROJEKT</button>` : ''}
       </div>
       <div id="proj-list">${projectTableHTML()}</div>
     </div>
@@ -1102,13 +1240,12 @@ function viewUsers() {
     <div class="card section-gap"><div class="card-body perm-bar">${status}
       <button class="btn ghost small" data-action="perm-apply" ${st.running ? 'disabled' : ''}>Rechte jetzt abgleichen</button></div></div>
     <div class="card section-gap">
-      ${users.length ? `<div class="tbl-wrap"><table class="tbl users-tbl">
-        <thead><tr><th>Name</th>${ROLE_KEYS.map(([, t]) => `<th class="c">${t}</th>`).join('')}<th class="c">Aktiv</th></tr></thead>
-        <tbody>${users.map(u => `<tr class="${u.active ? '' : 'archived'}">
-          <td><div class="name-cell">${esc(u.name)}</div><div class="muted small">${esc(u.upn)}</div></td>
-          ${ROLE_KEYS.map(([k, t]) => `<td class="c"><input type="checkbox" aria-label="${t}" data-change="role" data-id="${u.id}" data-role="${k}" ${u.roles.includes(k) ? 'checked' : ''}></td>`).join('')}
-          <td class="c"><input type="checkbox" aria-label="Aktiv" data-change="role-active" data-id="${u.id}" ${u.active ? 'checked' : ''}></td></tr>`).join('')}</tbody>
-      </table></div>` : '<div class="empty"><p>Noch keine Benutzer.</p></div>'}
+      <div class="toolbar users-bar">
+        <input type="search" id="user-q" placeholder="Suchen" value="${esc(UI.userQ)}" autocomplete="off">
+        <div class="seg" role="tablist">${[['all', 'Alle'], ['active', 'Aktiv'], ['inactive', 'Inaktiv']].map(([k, t]) =>
+          `<button class="seg-btn ${UI.userSeg === k ? 'on' : ''}" data-action="user-seg" data-seg="${k}">${t} <span class="seg-n">${users.filter(u => k === 'all' || (k === 'active') === !!u.active).length}</span></button>`).join('')}</div>
+      </div>
+      <div id="user-list">${usersTableHTML(users)}</div>
     </div>
     ${teamsCardHTML()}
     <div class="card"><div class="card-head">Was die Rollen dürfen</div><div class="card-body">
@@ -1122,6 +1259,24 @@ function viewUsers() {
       <p class="muted" style="margin-bottom:0">Eine Person kann mehrere Rollen haben. Wer selbst Zeiten erfasst, braucht zusätzlich „Mitarbeiter“ (Projektleiter können immer erfassen).</p>
     </div></div>
   </div>`;
+}
+// Benutzerliste wie in Clockify: Name (ausgeschiedene durchgestrichen), darunter E-Mail; Rollen als Häkchen
+function usersTableHTML(users = [...S.roles].sort(byName)) {
+  const q = UI.userQ.trim().toLowerCase();
+  const list = users.filter(u => (UI.userSeg === 'all' || (UI.userSeg === 'active') === !!u.active) &&
+    (!q || (u.name || '').toLowerCase().includes(q) || (u.upn || '').toLowerCase().includes(q)));
+  if (!users.length) return '<div class="empty"><p>Noch keine Benutzer.</p></div>';
+  if (!list.length) return '<div class="empty"><p>Niemand gefunden.</p></div>';
+  return `<div class="tbl-wrap"><table class="tbl users-tbl">
+    <thead><tr><th>Name</th>${ROLE_KEYS.map(([, t]) => `<th class="c">${t}</th>`).join('')}<th class="c">Aktiv</th></tr></thead>
+    <tbody>${list.map(u => `<tr class="${u.active ? '' : 'inactive'}">
+      <td><div class="u-name">${esc(u.name)}</div><div class="muted small">${esc(u.upn)}</div></td>
+      ${ROLE_KEYS.map(([k, t]) => `<td class="c"><input type="checkbox" aria-label="${t}" data-change="role" data-id="${u.id}" data-role="${k}" ${u.roles.includes(k) ? 'checked' : ''}></td>`).join('')}
+      <td class="c"><input type="checkbox" aria-label="Aktiv" data-change="role-active" data-id="${u.id}" ${u.active ? 'checked' : ''}></td></tr>`).join('')}</tbody>
+  </table></div>`;
+}
+function afterUsers() {
+  $('#user-q')?.addEventListener('input', ev => { UI.userQ = ev.target.value; $('#user-list').innerHTML = usersTableHTML(); });
 }
 /* ---------- Teams-App-Paket (manifest.json + 2 Symbole als ZIP) ---------- */
 const appBaseUrl = () => location.origin + location.pathname.replace(/[^/]*$/, '');
@@ -1376,6 +1531,10 @@ const ACTIONS = {
   'rep-shift': el => { UI.report.offset += Number(el.dataset.d); render(); },
   'rep-csv': exportCSV,
   'rep-print': () => window.print(),
+  'rep-export': el => openExportMenu(el),
+  'user-seg': el => { UI.userSeg = el.dataset.seg; render(); },
+  'rep-filter': el => openReportFilter(el.dataset.page || ''),
+  'rep-clear': () => { Object.assign(UI.report, { userIds: [], clientIds: [], projectIds: [], tagIds: [], billOnly: false }); if (UI.report.groupBy === 'user') UI.report.groupBy = 'project'; render(); },
   'new-project': () => openProjectModal(null),
   'edit-project': el => openProjectModal(el.dataset.id),
   'archive-project': el => {
@@ -1428,7 +1587,7 @@ const ACTIONS = {
   'cloud-login': () => Cloud.login(),
   'cloud-logout': () => Cloud.logout(),
   'cloud-sync': () => Cloud.sync(),
-  'cloud-status': () => Cloud.statusClick(),
+  'cloud-status': () => window.APP_UPDATE ? updateNow() : Cloud.statusClick(),
   'team-refresh': () => { Cloud.refreshTeam(); render(); },
   'export-json': exportJSON,
   'import-json': () => $('#import-file').click(),
@@ -1456,15 +1615,6 @@ document.addEventListener('change', ev => {
   } else if (k === 'rep') {
     UI.report[el.name] = el.value;
     if (el.name === 'range') UI.report.offset = 0;
-    if (el.name === 'scope') { UI.report.userId = ''; UI.report.groupBy = el.value === 'team' ? 'user' : 'project'; }
-    render();
-  } else if (k === 'rep-person') {
-    const v = el.value, R = UI.report, wasTeam = R.scope === 'team';
-    if (v === 'me') { R.scope = 'me'; R.userId = ''; }
-    else { R.scope = 'team'; R.userId = v.startsWith('u:') ? v.slice(2) : ''; }
-    if (R.scope === 'team' && !wasTeam) R.groupBy = R.userId ? 'project' : 'user';
-    if (R.scope === 'me' && R.groupBy === 'user') R.groupBy = 'project';
-    if (R.userId && R.groupBy === 'user') R.groupBy = 'project'; // eine Person → nach Projekten aufschlüsseln
     render();
   } else if (k === 'proj-arch') { UI.showArchived = el.checked; render(); }
   else if (k === 'role') setRole(el.dataset.id, el.dataset.role, el.checked);
@@ -1541,7 +1691,9 @@ async function checkForUpdate() {
   try {
     const txt = await (await fetch('version.js?check=' + Date.now(), { cache: 'no-store' })).text();
     const v = /APP_VERSION\s*=\s*'([^']+)'/.exec(txt)?.[1];
-    if (!v || v === APP_VERSION || document.getElementById('update-bar')) return;
+    if (!v || v === APP_VERSION) return;
+    if (window.APP_UPDATE !== v) { window.APP_UPDATE = v; window.Cloud?.repaint?.(); } // roter Punkt an der Wolke
+    if (document.getElementById('update-bar')) return;
     const bar = document.createElement('div');
     bar.id = 'update-bar'; bar.className = 'update-bar';
     bar.innerHTML = `Neue Version ${esc(v)} verfügbar (aktuell ${APP_VERSION}). <button class="btn primary">Jetzt aktualisieren</button>`;
@@ -1557,5 +1709,6 @@ async function updateNow() {
   location.reload();
 }
 setTimeout(checkForUpdate, 3000);
+setInterval(checkForUpdate, 30 * 60000); // Teams hält die App oft tagelang offen
 document.addEventListener('visibilitychange', () => { if (!document.hidden) checkForUpdate(); });
 if (navigator.storage?.persist) navigator.storage.persist().catch(() => {});

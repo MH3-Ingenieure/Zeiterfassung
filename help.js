@@ -80,10 +80,11 @@ const HELP = [
     roles: 'all', title: 'Berichte und Export', body: `
     <ol>
       <li>Links auf <b>Berichte</b>.</li>
-      <li>Zeitraum wählen: <b>Tag, Woche, Monat, Jahr</b> (mit den Pfeilen blättern) oder <b>Zeitraum</b> mit Von/Bis.</li>
-      <li>Bei Bedarf filtern: Projekt, Kunde, Tag, abrechenbar, Suchbegriff im Kommentar.</li>
+      <li>Auf <b>Filter</b> tippen. Oben den Zeitraum wählen: <b>Diese Woche, Letzte Woche, Letzte zwei Wochen, Diesen Monat, Letzten Monat, Dieses Jahr, Letztes Jahr</b> oder <b>Benutzerdefiniert</b> (Von/Bis).</li>
+      <li>Darunter bei Bedarf <b>Team</b>, <b>Kunde</b>, <b>Projekt</b> und <b>Tag</b> eingrenzen (mehrere ankreuzen möglich) und <b>Nur abrechenbare Zeiten</b> einschalten. Mit <b>Anwenden</b> übernehmen.</li>
+      <li>Mit den Pfeilen neben dem Zeitraum blättern Sie eine Woche/einen Monat/ein Jahr vor oder zurück. Die aktiven Filter stehen als Kärtchen unter der Leiste; ein Tipp darauf öffnet den Filter.</li>
       <li>Sie sehen Summen, ein Diagramm, eine <b>Aufschlüsselung</b> (nach Projekt, Kunde, Tag, Beschreibung oder Datum) und den <b>Einzelnachweis</b>.</li>
-      <li><b>CSV</b> lädt eine Datei für Excel. <b>PDF / Drucken</b> öffnet den Druckdialog – dort „Als PDF speichern“ wählen. Der Ausdruck enthält oben den Firmenkopf mit MH3-Logo, Zeitraum, Filter und Erstellungsdatum.</li>
+      <li><b>Exportieren</b> (oben rechts): <b>Als PDF speichern</b> (Druckdialog → „Als PDF speichern“, mit MH3-Firmenkopf), <b>Als CSV speichern</b> oder <b>Als Excel speichern</b> (.xlsx; Stunden und Beträge als Zahlen, mit Filterzeile).</li>
     </ol>
     <p>Mitarbeiter sehen nur ihre eigenen Zeiten und keine Beträge. Projektleiter, Buchhaltung und Administratoren haben zusätzlich die Team-Auswertung (siehe unten).</p>`
   },
@@ -136,7 +137,7 @@ const HELP = [
       <li>Beim Projekt auf das <b>Personen-Symbol</b> (Team zuordnen) tippen.</li>
       <li>Die Mitarbeiter anhaken, die auf dieses Projekt Zeiten erfassen sollen (Suche oben) → <b>Speichern</b>.</li>
     </ol>
-    <p>Die angehakten Personen sehen das Projekt sofort in ihrer Auswahl. Sie als Projektleiter sehen deren Zeiten unter <b>Berichte → „Team meiner Projekte“</b>. Häkchen entfernen nimmt jemanden aus dem Team; bereits erfasste Zeiten bleiben erhalten.</p>`
+    <p>Die angehakten Personen sehen das Projekt sofort in ihrer Auswahl. Sie als Projektleiter sehen deren Zeiten unter <b>Berichte → Filter → Team</b>. Häkchen entfernen nimmt jemanden aus dem Team; bereits erfasste Zeiten bleiben erhalten.</p>`
   },
   {
     roles: ['admin', 'bh'], title: 'Projekte und Kunden anlegen (Buchhaltung, Administratoren)', body: `
@@ -166,15 +167,15 @@ const HELP = [
     roles: ['admin', 'pl', 'bh'], title: 'Team-Auswertung (Projektleiter, Buchhaltung, Administratoren)', body: `
     <ol>
       <li>Links auf <b>Berichte</b>.</li>
-      <li>Oben im Feld <b>„Person“</b> wählen:
+      <li><b>Filter → Team</b> wählen:
         <ul>
-          <li><b>Nur ich</b> – die eigenen Zeiten,</li>
-          <li><b>Alle Mitarbeiter</b> (Buchhaltung, Administratoren) bzw. <b>Team meiner Projekte</b> (Projektleiter) – alle zusammen,</li>
-          <li>oder eine <b>einzelne Person</b> aus der Liste – z. B. um zu sehen, wie ein Mitarbeiter auf mehrere Projekte verteilt ist.</li>
+          <li>nichts angekreuzt – <b>nur die eigenen Zeiten</b>,</li>
+          <li><b>Alle Mitarbeiter</b> (Buchhaltung, Administratoren) bzw. <b>Ganzes Team meiner Projekte</b> (Projektleiter) – alle zusammen,</li>
+          <li>oder eine oder mehrere <b>Personen</b> ankreuzen – z. B. um zu sehen, wie ein Mitarbeiter auf mehrere Projekte verteilt ist.</li>
         </ul></li>
-      <li>Zeitraum wählen – für einen beliebigen Zeitraum <b>„Zeitraum“</b> und Von/Bis-Datum eintragen. Mit ⟳ die Daten neu laden.</li>
+      <li>Zeitraum im selben Fenster wählen, für einen beliebigen Zeitraum <b>„Benutzerdefiniert“</b> mit Von/Bis. <b>Anwenden</b> tippen. Mit ⟳ die Daten neu laden.</li>
       <li>Bei einer einzelnen Person schlüsselt die App automatisch <b>nach Projekt</b> auf; bei allen zusammen <b>nach Mitarbeiter</b>. Der Einzelnachweis enthält Name, Kommentar, Projekt und Betrag.</li>
-      <li>Export über <b>CSV</b> (Excel) oder <b>PDF / Drucken</b>.</li>
+      <li>Export über <b>Exportieren</b>: PDF, CSV oder Excel.</li>
     </ol>
     <p>Beträge = Stunden × Stundensatz des Projekts, nur für abrechenbare Zeiten.</p>`
   },

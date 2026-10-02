@@ -487,3 +487,66 @@ table.tbl { width: 100%; border-collapse: collapse; }
 /* Hinweis auf neue Version */
 .update-bar { position: fixed; left: 50%; bottom: 16px; transform: translateX(-50%); z-index: 2000; background: var(--card, #fff); color: inherit; border: 2px solid var(--strong, #000); border-radius: 10px; padding: 10px 14px; box-shadow: 0 6px 24px rgba(0,0,0,.25); display: flex; gap: 12px; align-items: center; flex-wrap: wrap; max-width: calc(100vw - 32px); }
 @media (max-width: 760px) { .update-bar { bottom: calc(80px + env(safe-area-inset-bottom)); } }
+
+/* ---------- 1.10: Diktier-Knopf rot und oval ---------- */
+.btn.dz-btn { background: var(--danger); color: #fff; border: 0; border-radius: 999px; }
+.btn.dz-btn:hover { background: var(--danger-d); }
+.btn.small.dz-btn { padding: 0 14px; }
+.toolbar-break { flex-basis: 100%; height: 0; }
+
+/* ---------- Update-Hinweis an der Wolke ---------- */
+.sync-status { position: relative; }
+.sync-status.has-update { color: #fff; background: var(--danger); cursor: pointer; }
+.upd-dot { position: absolute; top: -2px; right: -2px; width: 10px; height: 10px; border-radius: 50%; background: #ffeb3b; border: 2px solid var(--surface); }
+
+/* ---------- Berichte: Filter wie Clockify ---------- */
+.rep-filter-btn .ic { width: 16px; height: 16px; }
+.rep-badge { display: inline-grid; place-items: center; min-width: 18px; height: 18px; padding: 0 5px; border-radius: 9px; background: #fff; color: var(--accent-d); font-size: 11px; font-weight: 700; margin-left: 2px; }
+.rep-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.rep-chip { cursor: pointer; }
+.rep-clear { cursor: pointer; color: var(--danger); background: transparent; border: 1px solid var(--border); }
+.rep-bar .rep-q { flex: 1; min-width: 0; max-width: 420px; }
+.export-menu { width: 230px; }
+.export-menu .pp-item .ic { width: 18px; height: 18px; color: var(--muted-2); }
+.flt-modal { padding: 0; background: var(--surface-2); width: min(460px, 100%); }
+.flt { padding: 0 16px 18px; }
+.flt-head { position: sticky; top: 0; z-index: 1; display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 14px 0 12px; background: var(--surface-2); }
+.flt-head b { font-size: 17px; }
+.flt-pill { display: inline-flex; align-items: center; gap: 4px; height: 38px; padding: 0 16px; border-radius: 19px; background: var(--surface); box-shadow: 0 1px 3px rgba(0,0,0,.12); font-size: 15px; }
+.flt-pill .ic { width: 16px; height: 16px; }
+.flt-pill.strong { font-weight: 600; color: var(--accent-d); }
+.flt-pill-space { width: 90px; }
+.flt-group { background: var(--surface); border-radius: 14px; margin-bottom: 14px; overflow: hidden; }
+.flt-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; width: 100%; min-height: 50px; padding: 0 16px; text-align: left; font-size: 15.5px; border-bottom: 1px solid var(--border); cursor: pointer; }
+.flt-row:last-child { border-bottom: 0; }
+.flt-row:hover { background: var(--hover); }
+.flt-row[hidden] { display: none; }
+.flt-row input[type=checkbox] { width: 20px; height: 20px; accent-color: var(--accent); flex: none; }
+.flt-check .ic { width: 22px; height: 22px; color: var(--accent); }
+.flt-val { display: inline-flex; align-items: center; gap: 4px; color: var(--muted); font-size: 14px; }
+.flt-val .ic { width: 16px; height: 16px; }
+.flt-switch { appearance: none; -webkit-appearance: none; width: 48px !important; height: 28px !important; border-radius: 14px; background: var(--border); position: relative; transition: background .15s; }
+.flt-switch::after { content: ""; position: absolute; top: 3px; left: 3px; width: 22px; height: 22px; border-radius: 50%; background: #fff; box-shadow: 0 1px 2px rgba(0,0,0,.3); transition: left .15s; }
+.flt-switch:checked { background: #34c759; }
+.flt-switch:checked::after { left: 23px; }
+.flt-dates { display: flex; gap: 12px; padding: 12px 16px; flex-wrap: wrap; }
+.flt-dates label { display: flex; flex-direction: column; gap: 4px; font-size: 12px; color: var(--muted-2); flex: 1; }
+.flt-dates input { height: 38px; border: 1px solid var(--border); border-radius: 6px; padding: 0 8px; background: var(--surface); }
+.flt-q { width: 100%; height: 40px; border: 1px solid var(--border); border-radius: 10px; padding: 0 12px; background: var(--surface); margin-bottom: 12px; }
+.flt-reset { display: block; margin: 4px auto 0; color: var(--danger); font-size: 14px; padding: 8px; }
+
+/* ---------- Benutzer & Rollen: Liste wie Clockify ---------- */
+.users-bar #user-q { flex: 1 1 220px; }
+.seg { display: inline-flex; background: var(--surface-2); border: 1px solid var(--border); border-radius: 10px; padding: 3px; gap: 2px; }
+.seg-btn { padding: 6px 14px; border-radius: 8px; font-size: 14px; color: var(--muted-2); }
+.seg-btn.on { background: var(--surface); color: var(--text); font-weight: 600; box-shadow: 0 1px 3px rgba(0,0,0,.12); }
+.seg-n { color: var(--muted); font-weight: 400; font-size: 12px; }
+.u-name { font-weight: 500; font-size: 15px; }
+.users-tbl tr.inactive .u-name { text-decoration: line-through; color: var(--muted-2); }
+@media (max-width: 760px) {
+  .seg { width: 100%; } .seg-btn { flex: 1; padding: 7px 4px; }
+  .users-tbl th.c { font-size: 10px; white-space: normal; padding: 6px 2px; }
+  .users-tbl td.c { padding: 8px 2px; }
+  .rep-bar .rep-q { max-width: none; }
+}
+@media (max-width: 760px) { .toolbar #proj-q, .toolbar #user-q { flex: 1 1 100%; } }
