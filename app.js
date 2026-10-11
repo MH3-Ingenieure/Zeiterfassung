@@ -233,8 +233,7 @@ function timerBarHTML() {
   const manual = S.settings.trackMode !== 'timer' && !r;
   const m = UI.manual;
   return `<div class="card entry-form ${r ? 'running' : ''}">
-    <div class="ef-title">${r ? `${ic('clock')} Timer läuft` : manual ? 'Zeit eintragen' : `${ic('clock')} Zeit mit Timer erfassen`}
-      ${r ? '' : `<button class="btn small dz-btn ef-dict" data-action="dictate">${ic('mic')} diktieren</button>`}</div>
+    <div class="ef-title">${r ? `${ic('clock')} Timer läuft` : manual ? 'Zeit eintragen' : `${ic('clock')} Zeit mit Timer erfassen`}</div>
     <div class="ef-field">
       <span class="ef-label">Projekt</span>
       <button class="ef-proj" data-action="pick-project" data-target="timer">${projLabel(d.projectId, 'Projekt wählen')}<span class="ef-change">${d.projectId ? 'ändern' : ''}</span></button>
@@ -1075,8 +1074,7 @@ const canTrack = () => { const r = role(); return !!(r.local || r.admin || r.ma 
 function viewProjects() {
   return `<div class="page">
     <div class="page-head"><h1>${canSeeAllProjects() ? 'Projekte' : 'Meine Projekte'}</h1></div>
-    ${canTrack() ? `<div class="dz-start"><button class="btn dz-btn" data-action="dictate">${ic('mic')} Zeit diktieren</button>
-      <span class="page-hint">oder auf einen <b>Projektnamen</b> klicken, um Zeiten für dieses Projekt einzutragen.</span></div>` : ''}
+    ${canTrack() ? `<p class="page-hint">Auf einen <b>Projektnamen</b> klicken, um Zeiten für dieses Projekt einzutragen.</p>` : ''}
     <div class="card">
       <div class="toolbar">
         <input type="search" id="proj-q" placeholder="Projekt suchen…" value="${esc(UI.projQ)}">
@@ -1341,7 +1339,6 @@ async function downloadTeamsPackage() {
       accentColor: '#03A9F4',
       staticTabs: [{ entityId: 'zeiterfassung', name: 'Zeiterfassung', contentUrl: base + '?teams=1#/projects', websiteUrl: base, scopes: ['personal'] }],
       permissions: ['identity'],
-      devicePermissions: ['media'], // Mikrofon für „Zeit diktieren“ in Teams
       validDomains: [location.host]
     };
     const color = new Uint8Array(await (await fetch('icons/icon-192.png', { cache: 'no-store' })).arrayBuffer());
@@ -1571,7 +1568,6 @@ const ACTIONS = {
   'user-add': () => openUserAdd(),
   'edit-team': el => openTeamModal(el.dataset.id),
   'preview-end': () => setPreview(null),
-  'dictate': () => openDictate(),
   'changelog': () => openChangelog(),
   'open-project': el => { // Projekt aus der Übersicht → Zeiterfassung mit vorgewähltem Projekt
     const p = proj(el.dataset.id);

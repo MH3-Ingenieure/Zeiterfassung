@@ -5,10 +5,16 @@
    CHANGELOG.md und den Cache-Namen in sw.js mitziehen.
    Nummerierung: Hauptversion.Funktion.Korrektur (z. B. 1.9.1)
    ===================================================================== */
-const APP_VERSION = '1.10.0';
-const APP_RELEASE_DATE = '02.10.2026';
+const APP_VERSION = '1.11.0';
+const APP_RELEASE_DATE = '10.10.2026';
 
 const CHANGELOG = [
+  {
+    v: '1.11.0', date: '10.10.2026', title: 'Diktierfunktion entfernt', items: [
+      '„Zeit diktieren“ entfällt (Startseite und Eingabefenster): Die Spracheingabe war auf iPhone und in Teams nicht zuverlässig genug. Zeiten werden wie gewohnt über das Eingabefenster eingetragen.',
+      'Das Teams-App-Paket fordert keine Mikrofon-Berechtigung mehr an.'
+    ]
+  },
   {
     v: '1.10.0', date: '02.10.2026', title: 'Berichtsfilter und Export wie Clockify, Benutzerliste, Update-Hinweis', items: [
       'Berichte: Filterfenster mit Diese Woche, Letzte Woche, Letzte zwei Wochen, Diesen Monat, Letzten Monat, Dieses Jahr, Letztes Jahr, Benutzerdefiniert sowie Team, Kunde, Projekt, Tag (Mehrfachauswahl) und „Nur abrechenbare Zeiten“.',

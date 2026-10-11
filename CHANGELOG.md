@@ -1,11 +1,15 @@
 # Zeiterfassung – Änderungsprotokoll
 
-Aktuelles Release: **1.10.0** vom 02.10.2026
+Aktuelles Release: **1.11.0** vom 10.10.2026
 
 Nummerierung: *Hauptversion.Funktion.Korrektur*. Neue Funktionen erhöhen die mittlere Zahl, reine Korrekturen die letzte.
 Die gleiche Liste ist in der App unter **Einstellungen → Über diese App → Änderungsprotokoll anzeigen** zu sehen (Quelle: `version.js`).
 
 ---
+
+## 1.11.0 – 10.10.2026 – Diktierfunktion entfernt
+- „Zeit diktieren“ entfällt (Startseite, Eingabefenster, Hilfe); Teams-Paket ohne Mikrofon-Berechtigung.
+- Geänderte Dateien: `app.js`, `help.js`, `index.html`, `version.js`, `sw.js`, `CHANGELOG.md` – `dictate.js` auf GitHub löschen
 
 ## 1.10.0 – 02.10.2026 – Berichtsfilter und Export wie Clockify, Benutzerliste, Update-Hinweis
 - Berichte: Filterfenster (Zeitraum-Vorgaben wie Clockify, Team/Kunde/Projekt/Tag mit Mehrfachauswahl, nur abrechenbar).
