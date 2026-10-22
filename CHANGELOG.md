@@ -1,11 +1,17 @@
 # Zeiterfassung – Änderungsprotokoll
 
-Aktuelles Release: **1.13.0** vom 22.10.2026
+Aktuelles Release: **1.13.1** vom 22.10.2026
 
 Nummerierung: *Hauptversion.Funktion.Korrektur*. Neue Funktionen erhöhen die mittlere Zahl, reine Korrekturen die letzte.
 Die gleiche Liste ist in der App unter **Einstellungen → Über diese App → Änderungsprotokoll anzeigen** zu sehen (Quelle: `version.js`).
 
 ---
+
+## 1.13.1 – 22.10.2026 – Diktieren: bessere Zuordnung, Timer entfernt
+- „zwischen … und … Uhr“; Dauer neben Uhrzeit wird ignoriert; Projektnamen mit Punkt/zusammengeschrieben/anderer Endung; Kommentar enthält nur noch den Rest (ohne Projekt-, Kunden- und Tag-Wörter).
+- Genannter Kunde hat Vorrang; Kunde mit nur einem offenen Projekt → automatisch zugeordnet.
+- Timer aus der Oberfläche entfernt (START, Umschalter, ▶ Fortsetzen); Hilfe angepasst.
+- Geänderte Dateien: `dictate.js`, `app.js`, `help.js`, `version.js`, `sw.js`, `CHANGELOG.md`
 
 ## 1.13.0 – 22.10.2026 – Diktieren mit einem Tipp (Microsoft-Sprachdienst)
 - Roter Knopf „Zeit diktieren“ startet sofort die Aufnahme (iPhone, Teams, Browser); Ende nach kurzer Stille.

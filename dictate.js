@@ -16,7 +16,8 @@ const DZ_NUM = `(?:\\d{1,2}(?:[:.]\\d{2})?|${Object.keys(DZ_WORDNUM).sort((a, b)
 // Minuten nach „Uhr“ nur 00–59 und nicht, wenn eine Dauer folgt („14 Uhr 90 Minuten“)
 const DZ_PART = `(?:(?:halb|viertel\\s+nach|viertel\\s+vor|dreiviertel)\\s+)?${DZ_NUM}\\.?(?:\\s*uhr(?:\\s+[0-5]\\d(?![.:\\d])(?!\\s*(?:min|std|stund|h\\b)))?)?`;
 const DZ_RANGE_RE = new RegExp(`(?:\\b(?:von|ab|um)\\s+)?(${DZ_PART})\\s*(?:-|–|bis(?:\\s+um)?)\\s*(${DZ_PART})`, 'i');
-const DZ_START_RE = new RegExp(`\\b(?:ab|um|von)\\s+(${DZ_PART})`, 'i');
+const DZ_BETWEEN_RE = new RegExp(`\\bzwischen\\s+(${DZ_PART})\\s+und\\s+(${DZ_PART})`, 'i');
+const DZ_START_RE =new RegExp(`\\b(?:ab|um|von)\\s+(${DZ_PART})`, 'i');
 const DZ_DUR_RE = new RegExp(`\\b(anderthalb|eineinhalb|eine\\s+halbe|halbe|\\d+(?:[.,]\\d+)?|${Object.keys(DZ_WORDNUM).join('|')})\\s*(stunden|stunde|std\\.?|h|minuten|min)\\b`, 'i');
 
 const dzNorm = s => String(s).toLowerCase().replace(/ä/g, 'a').replace(/ö/g, 'o').replace(/ü/g, 'u').replace(/ß/g, 'ss').replace(/[^a-z0-9]+/g, ' ').trim();
@@ -91,39 +92,65 @@ function dzProjects(text) {
   const words = dzNorm(text).split(' ').filter(w => w.length >= 2);
   const scored = visibleProjects().filter(p => !p.archived).map(p => {
     const nameW = dzNorm(p.name).split(' ').filter(w => (w.length >= 3 || /\d/.test(w)) && !DZ_STOP.has(w));
-    const cliW = dzNorm(client(p.clientId)?.name || '').split(' ').filter(w => w.length >= 4 && !DZ_STOP.has(w));
+    const cliW = dzNorm(client(p.clientId)?.name || '').split(' ').filter(w => w.length >= 3 && !DZ_STOP.has(w));
     if (!nameW.length) return { p, score: 0, hits: [] };
     // ganzer Projektname im Text (dank Wortliste des Sprachdienstes häufig exakt) → sicherer Treffer
     const full = dzNorm(p.name);
     if (full.length >= 4 && (' ' + words.join(' ') + ' ').includes(' ' + full + ' ')) return { p, score: 1.2, hits: full.split(' ') };
+    // dasselbe ohne Leerzeichen: „NRW.BANK“ = „NRW Bank“ = „NRWBank“
+    const fullJ = full.replace(/ /g, '');
+    if (fullJ.length >= 6 && words.join('').includes(fullJ)) return { p, score: 1.15, hits: words.filter(w => w.length >= 2 && (fullJ.includes(w) || nameW.some(nw => dzSim(w, nw) >= 0.85))) };
     const hits = [];
-    let sum = 0;
+    let sum = 0, found = 0, strong = 0;
+    // Text-Wörter auch paarweise zusammengezogen vergleichen („nrw“ + „bank“ ↔ „nrwbank“)
+    const pairs = words.slice(1).map((w, i) => [words[i] + w, words[i] + ' ' + w]);
     for (const nw of nameW) {
       let best = 0, bw = null;
       for (const w of words) { const s = dzSim(w, nw); if (s > best) { best = s; bw = w; } }
-      if (best >= 0.75) { sum += best; hits.push(bw); }
+      for (const [j, orig] of pairs) { const s = dzSim(j, nw); if (s > best) { best = s; bw = orig; } }
+      if (best >= 0.75) { sum += best; found++; if (best >= 0.85) strong++; hits.push(...bw.split(' ')); }
     }
     let score = sum / nameW.length;
-    if (score > 0 && cliW.some(cw => words.some(w => dzSim(w, cw) >= 0.8))) score = Math.min(1, score + 0.1);
-    if (hits.length && nameW.length > 1 && hits.length === 1) score = Math.max(score, 0.55); // ein markantes Wort genügt oft
+    // ein markantes Wort genügt oft – aber nur bei einem richtigen Treffer, nicht wenn es bloß in einem
+    // längeren Wort steckt („Planung“ in „Planungskoordination“)
+    if (found === 1 && strong === 1 && nameW.length > 1) score = Math.max(score, 0.55);
+    // gesagter Kunde („NRW Bank“) spricht deutlich für dessen Projekte
+    const cliJ = cliW.join('');
+    const cliHit = cliW.length && (cliW.some(cw => words.some(w => dzSim(w, cw) >= 0.85)) || (cliJ.length >= 6 && words.join('').includes(cliJ)));
+    if (score > 0 && cliHit) score = Math.min(1.1, score + 0.25);
     return { p, score, hits };
   }).filter(x => x.score > 0).sort((a, b) => b.score - a.score);
-  const best = scored[0], second = scored[1];
-  const sure = best && best.score >= 0.5 && (!second || best.score - second.score >= 0.15);
-  return { project: sure ? best.p : null, hits: sure ? best.hits : [], candidates: scored.slice(0, 4).map(x => x.p) };
+  // Wurde ein Kunde vollständig genannt („NRW Bank“, „Stadtwerke Bonn“)? Dann haben seine Projekte Vorrang.
+  const joined = words.join('');
+  const open = visibleProjects().filter(p => !p.archived);
+  const named = S.clients.filter(c => {
+    const cw = dzNorm(c.name).split(' ').filter(w => w.length >= 3 && !DZ_STOP.has(w)), cj = cw.join('');
+    return cw.length && open.some(p => p.clientId === c.id) && ((cj.length >= 6 && joined.includes(cj)) || cw.every(x => words.some(w => dzSim(w, x) >= 0.85)));
+  });
+  const ofClient = named.length === 1 ? open.filter(p => p.clientId === named[0].id) : [];
+  const pool = ofClient.length && scored.some(x => ofClient.includes(x.p)) ? scored.filter(x => ofClient.includes(x.p)) : scored;
+  const best = pool[0], second = pool[1];
+  const sure = best && best.score >= 0.5 && (!second || best.score - second.score >= 0.15) && (!ofClient.length || ofClient.includes(best.p));
+  if (sure) return { project: best.p, hits: best.hits, candidates: pool.slice(0, 4).map(x => x.p) };
+  // Kunde mit genau einem offenen Projekt → dieses Projekt, auch ohne Projektnamen
+  if (ofClient.length === 1) return { project: ofClient[0], hits: [], candidates: ofClient };
+  // sonst die Projekte des Kunden zuerst vorschlagen
+  const cands = [...new Set([...pool.map(x => x.p), ...ofClient, ...scored.map(x => x.p)])];
+  return { project: null, hits: [], candidates: cands.slice(0, 4) };
 }
 
-// Tags: „Baustellenbegehung“ → Tag „Begehung“
+// Tags: „Baustellenbegehung“ → Tag „Begehung“, „Planungskoordination“ → Tag „Koordination“
+const dzTagWord = (w, tw) => w === tw || (tw.length >= 5 && w.includes(tw)) || dzSim(w, tw) >= 0.85;
 function dzTags(text) {
   const words = dzNorm(text).split(' ');
-  return S.tags.filter(t => dzNorm(t.name).split(' ').filter(w => w.length >= 4).some(tw => words.some(w => w === tw || (tw.length >= 5 && w.includes(tw)) || dzSim(w, tw) >= 0.85))).map(t => t.id);
+  return S.tags.filter(t => dzNorm(t.name).split(' ').filter(w => w.length >= 4).some(tw => words.some(w => dzTagWord(w, tw)))).map(t => t.id);
 }
 
 function parseDictation(text) {
   let rest = ' ' + text + ' ';
   const r = { date: null, start: null, end: null, projectId: null, candidates: [], tagIds: [], comment: '', assumed: [] };
   // 1) Uhrzeiten
-  let m = rest.match(DZ_RANGE_RE);
+  let m = rest.match(DZ_BETWEEN_RE) || rest.match(DZ_RANGE_RE); // „zwischen 14 und 15 Uhr“, „von 9 bis 12“, „9–12“
   if (m) {
     let a = dzTime(m[1].replace(/^(von|ab|um)\s+/i, '')), b = dzTime(m[2]);
     if (a && b) {
@@ -132,6 +159,8 @@ function parseDictation(text) {
       r.start = dzHHMM(a); r.end = dzHHMM(b);
     }
     rest = rest.replace(m[0], ' ');
+    // eine zusätzlich gesagte Dauer („eine Stunde“) steckt schon in Beginn/Ende → nicht in den Kommentar
+    rest = rest.replace(new RegExp(DZ_DUR_RE.source, 'gi'), ' ');
   } else {
     const dm = rest.match(DZ_DUR_RE), sm = rest.match(DZ_START_RE);
     if (dm) {
@@ -161,13 +190,25 @@ function parseDictation(text) {
   const pr = dzProjects(rest);
   r.projectId = pr.project?.id || null; r.candidates = pr.candidates;
   // erkannte Projektwörter aus dem Kommentar entfernen (Vergleich ohne Umlaute/Satzzeichen)
-  if (pr.project) rest = rest.split(/(\s+)/).map(tok => { const n = dzNorm(tok); return n && pr.hits.some(h => n === h || dzSim(n, h) >= 0.85) ? ' ' : tok; }).join('');
-  // 4) Tags
+  // „NRW.BANK“ ergibt zwei Wörter (nrw, bank) → Token nur entfernen, wenn alle seine Teile Treffer sind
+  const isHit = (tok, list, test) => { const parts = dzNorm(tok).split(' ').filter(Boolean); return parts.length && parts.every(n => list.some(h => test(n, h))); };
+  if (pr.project) {
+    // Projekt- und Kundenwörter („Umbau Umkleiden“, „NRW.Bank“) gehören nicht in den Kommentar
+    const cw = dzNorm(client(pr.project.clientId)?.name || '').split(' ').filter(w => w.length >= 2 && !DZ_STOP.has(w));
+    const hitW = [...pr.hits, ...cw, cw.join('')]; // auch zusammengeschrieben („NRWBank“)
+    rest = rest.split(/(\s+)/).map(tok => isHit(tok, hitW, (n, h) => n === h || dzSim(n, h) >= 0.85) ? ' ' : tok).join('');
+  }
+  // 4) Tags – das erkannte Tätigkeitswort gehört nicht mehr in den Kommentar
   r.tagIds = dzTags(text);
-  // 5) Kommentar = Rest ohne Füllwörter
-  r.comment = rest.replace(/\b(projekt|für das projekt|für projekt|beim projekt|auf dem projekt|auf projekt)\b/gi, ' ')
-    .replace(/(^|\s)[,.;:–-]+(?=\s|$)/g, ' ').replace(/\s+[,.;:]/g, m => m.trim()).replace(/([,.;:])[,.;:\s]*[,.;:]/g, '$1').replace(/\s+/g, ' ')
-    .replace(/^[\s,.;:–-]+|[\s,.;:–-]+$/g, '').replace(/\b(von|bis|uhr|am|um|ab|und)$/i, '').trim();
+  const tagW = S.tags.filter(t => r.tagIds.includes(t.id)).flatMap(t => dzNorm(t.name).split(' ').filter(w => w.length >= 4));
+  if (tagW.length) rest = rest.split(/(\s+)/).map(tok => isHit(tok, tagW, (n, tw) => dzTagWord(n, tw)) ? ' ' : tok).join('');
+  // 5) Kommentar = was übrig bleibt, ohne Satzzeichen-Reste und Füllwörter am Anfang/Ende
+  const FILL = /^(auf|beim|bei|für|fur|im|in|am|um|ab|von|bis|und|zwischen|uhr|ein|eine|einer|stunde|stunden|minuten|projekt|das|dem|den|der|die|mit|zum|zur|heute)$/i;
+  let words = rest.replace(/\b(für das projekt|für projekt|beim projekt|auf dem projekt|auf projekt)\b/gi, ' ')
+    .replace(/[,.;:–]+/g, ' ').replace(/\s+-\s+/g, ' ').split(/\s+/).filter(Boolean);
+  while (words.length && FILL.test(words[0])) words.shift();
+  while (words.length && FILL.test(words[words.length - 1])) words.pop();
+  r.comment = words.join(' ').trim();
   if (r.comment) r.comment = r.comment[0].toUpperCase() + r.comment.slice(1);
   return r;
 }

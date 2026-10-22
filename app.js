@@ -245,10 +245,10 @@ function tagsLabel(ids) {
 }
 
 // Eingabeformular: 1. Projekt, 2. Kommentar (umrandet), 3. Tags/€, 4. Datum, Beginn, Ende → HINZUFÜGEN.
-// Der Timer ist nur eine Nebenoption.
+// Einen Timer gibt es nicht mehr (nur ein noch laufender alter Timer wird zum Beenden angezeigt).
 function timerBarHTML() {
   const r = S.running, d = r || UI.draft;
-  const manual = S.settings.trackMode !== 'timer' && !r;
+  const manual = !r;
   const m = UI.manual;
   return `<div class="card entry-form ${r ? 'running' : ''}">
     <div class="ef-title">${r ? `${ic('clock')} Timer läuft` : manual ? 'Zeit eintragen' : `${ic('clock')} Zeit mit Timer erfassen`}
@@ -269,15 +269,12 @@ function timerBarHTML() {
         <div class="ef-mini"><span>Ende</span>${timeSelHTML('m-end', m.end)}</div>
         <div class="ef-mini"><span>Dauer</span><b class="m-dur" id="m-dur">0:00:00</b></div>
         <button class="btn primary ef-main" data-action="add-manual">HINZUFÜGEN</button>
-      </div>
-      <button class="ef-switch" data-action="set-mode" data-mode="timer">${ic('clock')} stattdessen Timer starten</button>`
+      </div>`
     : `<div class="ef-row ef-times">
-        <span class="tb-time" id="timer-display">${r ? fmtClock(Date.now() - r.start) : '0:00:00'}</span>
-        ${r ? `<button class="btn danger ef-main" data-action="stop">STOPP</button>
-          <button class="icon-btn" data-action="discard" title="Timer verwerfen">${ic('trash')}</button>`
-        : `<button class="btn primary ef-main" data-action="start">START</button>`}
-      </div>
-      ${r ? '' : `<button class="ef-switch" data-action="set-mode" data-mode="manual">${ic('list')} zurück zur Eingabe von Beginn und Ende</button>`}`}
+        <span class="tb-time" id="timer-display">${fmtClock(Date.now() - r.start)}</span>
+        <button class="btn danger ef-main" data-action="stop">STOPP</button>
+        <button class="icon-btn" data-action="discard" title="Timer verwerfen">${ic('trash')}</button>
+      </div>`}
   </div>`;
 }
 
@@ -303,7 +300,6 @@ function entryRowHTML(e) {
       <button class="icon-btn ${tags.length ? 'active' : ''}" data-action="pick-tags" data-target="${e.id}" title="Tags">${ic('tag')}</button>
       <button class="icon-btn ${e.billable ? 'active' : ''}" data-action="toggle-billable" data-target="${e.id}" title="Abrechenbar">€</button>
       <span class="e-dur">${fmtDur(dur(e))}</span>
-      ${locked ? '' : `<button class="icon-btn" data-action="continue" data-id="${e.id}" title="Fortsetzen">${ic('play')}</button>`}
       <button class="icon-btn" data-action="entry-menu" data-id="${e.id}" title="Weitere Aktionen">${ic('more')}</button>
     </div>
   </div>`;
@@ -359,10 +355,9 @@ function afterTracker() {
     if (ev.key !== 'Enter' || !(ev.ctrlKey || ev.metaKey)) return;
     ev.preventDefault();
     if (S.running) inp.blur();
-    else if (S.settings.trackMode !== 'timer') addManual();
-    else startTimer(UI.draft);
+    else addManual();
   });
-  if (S.settings.trackMode !== 'timer' && !S.running) {
+  if (!S.running) {
     const upd = () => {
       UI.manual = { start: $('#m-start').value, end: $('#m-end').value, date: $('#m-date').value };
       const [s, e] = manualTimes();

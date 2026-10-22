@@ -38,15 +38,6 @@ const HELP = [
     <p>Tipps: Den <b>Projektnamen</b> mitsprechen. Ohne Datum = heute. Erkannt werden u. a. heute, gestern, Wochentage und Daten wie „12.10.“. Nur eine Dauer („90 Minuten“)? Dann wird der Beginn angenommen – bitte prüfen.</p>`
   },
   {
-    roles: 'all', title: 'Timer (optional)', body: `
-    <ol>
-      <li>Im Eingabefenster unten auf <b>„stattdessen Timer starten“</b> tippen.</li>
-      <li>Projekt, Kommentar und Tag wie gewohnt festlegen und <b>START</b> tippen. Die Zeit läuft – auch wenn Sie die App schließen oder das iPhone sperren.</li>
-      <li>Am Ende <b>STOPP</b> tippen. Versehentlich gestartet? Mit dem <b>Papierkorb</b> verwerfen.</li>
-      <li>Zurück zur normalen Eingabe über <b>„zurück zur Eingabe von Beginn und Ende“</b>.</li>
-    </ol>`
-  },
-  {
     roles: 'all', title: 'Tags und Kommentar – was gehört wohin?', body: `
     <ul>
       <li><b>Tag</b> = die <b>Art</b> der Tätigkeit aus einer festen Liste, z. B. Besprechung, Ortstermin, Baubesprechung. Mehrere Tags pro Eintrag sind möglich. Die Liste pflegt der Administrator; fehlt ein passender Tag, bitte dort melden.</li>
@@ -60,7 +51,6 @@ const HELP = [
       <li>In der Liste steht bei jedem Eintrag oben das <b>Projekt</b>, darunter der <b>Kommentar</b>.</li>
       <li><b>Ändern:</b> auf Kommentar oder Uhrzeit des Eintrags tippen → Dialog mit Kommentar, Projekt, Tags, abrechenbar, Datum, Beginn und Ende → <b>Speichern</b> (am PC auch Strg + Enter).</li>
       <li><b>Projekt oder Tags schnell ändern:</b> direkt auf den farbigen Projektnamen bzw. das Etikett im Eintrag tippen.</li>
-      <li><b>Fortsetzen ▶:</b> startet einen neuen Timer mit gleichem Kommentar, Projekt und Tags.</li>
       <li><b>Duplizieren / Löschen:</b> über die drei Punkte ⋮. Nach dem Löschen lässt sich das einige Sekunden mit „Rückgängig“ zurücknehmen.</li>
       <li>Die Liste zeigt die letzten Wochen mit Tages- und Wochensummen; ältere Einträge unten mit <b>„Ältere Einträge laden“</b>.</li>
     </ul>`
@@ -209,7 +199,6 @@ const HELP = [
     roles: 'all', title: 'Häufige Fragen', body: `
     <ul>
       <li><b>„Kein Zugriff: Ihr Konto ist nicht freigeschaltet“</b> – der Administrator muss Sie unter Benutzer & Rollen eintragen.</li>
-      <li><b>Timer vergessen zu stoppen?</b> Stoppen, Eintrag antippen, Ende korrigieren.</li>
       <li><b>Falsches Projekt?</b> Im Eintrag auf den Projektnamen tippen und das richtige wählen.</li>
       <li><b>Einträge fehlen auf dem anderen Gerät?</b> Auf beiden Geräten auf das Wolken-Symbol tippen; beide müssen mit demselben Konto angemeldet sein.</li>
       <li><b>Passender Tag fehlt?</b> Beim Administrator melden – bis dahin den Kommentar nutzen.</li>

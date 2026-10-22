@@ -5,10 +5,20 @@
    CHANGELOG.md und den Cache-Namen in sw.js mitziehen.
    Nummerierung: Hauptversion.Funktion.Korrektur (z. B. 1.9.1)
    ===================================================================== */
-const APP_VERSION = '1.13.0';
+const APP_VERSION = '1.13.1';
 const APP_RELEASE_DATE = '22.10.2026';
 
 const CHANGELOG = [
+  {
+    v: '1.13.1', date: '22.10.2026', title: 'Diktieren: bessere Zuordnung, Timer entfernt', items: [
+      'Wird ein Kunde genannt („NRW Bank“), haben seine Projekte Vorrang; hat er nur ein offenes Projekt, wird dieses automatisch gewählt.',
+      'Ein Wort, das nur in einem längeren Wort steckt („Planung“ in „Planungskoordination“), führt nicht mehr zu einem falschen Projekt.',
+      'Der Timer (START, „stattdessen Timer starten“, ▶ bei Einträgen) ist entfernt – Zeiten werden mit Beginn und Ende eingetragen oder diktiert.',
+      'Uhrzeit „zwischen 14 und 15 Uhr“ wird erkannt; eine zusätzlich gesagte Dauer („eine Stunde“) stört nicht mehr.',
+      'Projektnamen mit Punkt oder zusammengeschrieben („NRW.BANK“, „NRW Bank“, „NRWBank“) und abweichende Endungen („Umkleiden“) werden erkannt.',
+      'Erkannte Teile (Projekt, Tag, Datum, Uhrzeit, Dauer) stehen nicht mehr im Kommentar – dort bleibt nur, was sonst noch gesagt wurde.'
+    ]
+  },
   {
     v: '1.13.0', date: '22.10.2026', title: 'Diktieren mit einem Tipp (Microsoft-Sprachdienst)', items: [
       '„Zeit diktieren“ ist zurück: Ein Tipp auf den roten Knopf startet sofort die Aufnahme – auch auf dem iPhone und in Teams. Kurz schweigen beendet sie.',
