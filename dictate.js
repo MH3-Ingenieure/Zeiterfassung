@@ -3,7 +3,7 @@
    Zeit diktieren: „Baustellenbegehung TGA Bürogebäude, heute von 9 bis 12 Uhr“
    → Projekt, Datum, Beginn/Ende, Tags und Kommentar werden erkannt,
      zur Kontrolle angezeigt und erst nach Bestätigung gespeichert.
-   Die Spracherkennung übernimmt das Gerät (Web Speech API bzw. iPhone-Tastatur).
+   Spracherkennung: Microsoft Azure Sprachdienst (ein Tipp genügt), sonst das Gerät.
    ===================================================================== */
 const DZ_WORDNUM = {
   null: 0, ein: 1, eins: 1, eine: 1, einer: 1, zwei: 2, drei: 3, vier: 4, 'fünf': 5, fuenf: 5, sechs: 6, sieben: 7, acht: 8, neun: 9,
@@ -93,6 +93,9 @@ function dzProjects(text) {
     const nameW = dzNorm(p.name).split(' ').filter(w => (w.length >= 3 || /\d/.test(w)) && !DZ_STOP.has(w));
     const cliW = dzNorm(client(p.clientId)?.name || '').split(' ').filter(w => w.length >= 4 && !DZ_STOP.has(w));
     if (!nameW.length) return { p, score: 0, hits: [] };
+    // ganzer Projektname im Text (dank Wortliste des Sprachdienstes häufig exakt) → sicherer Treffer
+    const full = dzNorm(p.name);
+    if (full.length >= 4 && (' ' + words.join(' ') + ' ').includes(' ' + full + ' ')) return { p, score: 1.2, hits: full.split(' ') };
     const hits = [];
     let sum = 0;
     for (const nw of nameW) {
@@ -169,39 +172,153 @@ function parseDictation(text) {
   return r;
 }
 
-/* ---------- Dialog ---------- */
-// Diktierfunktion des Geräts – funktioniert in jedem Textfeld, auch wenn die App kein Mikrofon nutzen darf
-function dzOsHint() {
-  const ua = navigator.userAgent;
-  if (dzIsIOS()) return 'Ins Textfeld tippen, dann unten auf der Tastatur das <b>Mikrofon 🎤</b> antippen und sprechen. Zum Beenden erneut auf das Mikrofon bzw. auf „Fertig“ tippen.';
-  if (/Android/.test(ua)) return 'Ins Textfeld tippen und auf der Tastatur das <b>Mikrofon</b> nutzen.';
-  if (/Mac/.test(ua)) return 'Ins Textfeld klicken und die <b>Diktierfunktion des Mac</b> starten: <b>zweimal die Fn- bzw. Globus-Taste</b> drücken (oder Menü Bearbeiten → Diktat starten).';
-  if (/Windows/.test(ua)) return 'Ins Textfeld klicken und die <b>Windows-Spracheingabe</b> starten: <b>Windows-Taste + H</b>.';
-  return 'Ins Textfeld klicken und die Diktierfunktion des Geräts nutzen.';
-}
-// Teams-Erkennung auch dann, wenn die Teams-Anmeldung (noch) nicht geklappt hat: eingebettet oder Teams-Kennung im Browser
+/* ---------- Spracherkennung ---------- */
+// 1. Microsoft Azure Sprachdienst (wenn in config.js eingerichtet): ein Tipp auf das Mikrofon genügt –
+//    auf dem iPhone, in Teams und im Browser. Anmeldung mit dem Firmenkonto, kein Schlüssel im Code.
+//    Projekt-, Kunden- und Tag-Namen werden dem Dienst als Wortliste mitgegeben (bessere Schreibweise).
+// 2. Ersatz ohne Azure: Spracherkennung des Browsers (PC) bzw. Diktierfunktion der Tastatur (iPhone/Teams).
+const DZ_SDK_URL = 'https://cdn.jsdelivr.net/npm/microsoft-cognitiveservices-speech-sdk@1.53.0/distrib/browser/microsoft.cognitiveservices.speech.sdk.bundle-min.js';
+const DZ_SDK_SRI = 'sha384-YG0CfpDhvvBF6YvDNHgeAPtRBdnkEnbLtXyPhAfT+dB7uCoCZgcIruOnhmQhJQqv';
+const DZ_SCOPE = 'https://cognitiveservices.azure.com/.default';
+
 const dzInTeams = () => !!window.Cloud?.inTeams?.() || window.parent !== window || /Teams\//i.test(navigator.userAgent) || new URLSearchParams(location.search).has('teams');
 const dzIsIOS = () => /iPhone|iPad|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
-// Browser-Spracherkennung nur dort, wo sie zuverlässig läuft. Auf iPhone/iPad (Home-Bildschirm-App,
-// Teams) hängt sie sich auf → dort die Diktierfunktion der Tastatur verwenden.
-const dzSpeech = () => (dzIsIOS() || dzInTeams() ? null : (window.SpeechRecognition || window.webkitSpeechRecognition || null));
+const dzAzureCfg = () => { const c = window.APP_CONFIG || {}; return c.speechRegion && c.speechResourceId && window.Cloud?.signedIn?.() ? c : null; };
+// Browser-Spracherkennung nur dort, wo sie zuverlässig läuft (nicht iPhone-App, nicht Teams)
+const dzWebSpeech = () => (dzIsIOS() || dzInTeams() ? null : (window.SpeechRecognition || window.webkitSpeechRecognition || null));
+const dzEngine = () => dzAzureCfg() && navigator.mediaDevices?.getUserMedia ? 'azure' : dzWebSpeech() ? 'web' : 'kbd';
 
+function dzOsHint() {
+  const ua = navigator.userAgent;
+  if (dzIsIOS()) return 'Ins Textfeld tippen, dann unten auf der Tastatur das <b>Mikrofon 🎤</b> antippen und sprechen.';
+  if (/Android/.test(ua)) return 'Ins Textfeld tippen und auf der Tastatur das <b>Mikrofon</b> nutzen.';
+  if (/Mac/.test(ua)) return 'Ins Textfeld klicken und <b>zweimal die Fn- bzw. Globus-Taste</b> drücken (Diktat des Mac).';
+  if (/Windows/.test(ua)) return 'Ins Textfeld klicken und <b>Windows-Taste + H</b> drücken (Spracheingabe von Windows).';
+  return 'Ins Textfeld klicken und die Diktierfunktion des Geräts nutzen.';
+}
+
+let dzSdkP = null, dzTok = null;
+function dzLoadSdk() {
+  if (window.SpeechSDK) return Promise.resolve(window.SpeechSDK);
+  return dzSdkP ||= new Promise((ok, fail) => {
+    const s = document.createElement('script');
+    s.src = DZ_SDK_URL; s.integrity = DZ_SDK_SRI; s.crossOrigin = 'anonymous';
+    s.onload = () => ok(window.SpeechSDK); s.onerror = () => { dzSdkP = null; fail(new Error('Sprachbibliothek konnte nicht geladen werden (keine Internetverbindung?)')); };
+    document.head.appendChild(s);
+  });
+}
+async function dzToken() { // Token des Firmenkontos für den Sprachdienst, ca. 50 Minuten zwischengespeichert
+  if (dzTok && dzTok.exp > Date.now()) return dzTok.t;
+  try { dzTok = { t: await Cloud.token([DZ_SCOPE]), exp: Date.now() + 50 * 60000 }; return dzTok.t; }
+  catch (e) { const err = new Error('Keine Berechtigung für den Sprachdienst (Zustimmung in Entra oder Rolle „Cognitive Services Speech User“ fehlt).'); err.auth = true; throw err; }
+}
+// Vorladen, damit der Start nach dem Tipp schnell geht
+function dzWarm() { if (dzAzureCfg()) { dzLoadSdk().catch(() => {}); dzToken().catch(() => {}); } }
+
+// Aufnahme über den Azure-Sprachdienst. Das Mikrofon öffnet die App selbst (eigener AudioContext, im Tipp
+// erzeugt – nötig für das iPhone) und reicht den Ton als 16-kHz-PCM an den Dienst weiter.
+function dzAzureSession({ onText, onState, onEnd }) {
+  const ctx = new (window.AudioContext || window.webkitAudioContext)();
+  ctx.resume?.();
+  let rec, push, stream, proc, src, finalText = '', closed = false, stopTimer, idleTimer;
+  const cleanup = () => {
+    if (closed) return; closed = true;
+    clearTimeout(stopTimer); clearTimeout(idleTimer);
+    try { proc?.disconnect(); src?.disconnect(); } catch { }
+    stream?.getTracks().forEach(t => t.stop());
+    try { push?.close(); } catch { }
+    try { ctx.close(); } catch { }
+  };
+  const finish = (err) => {
+    if (closed) return;
+    const done = () => { try { rec?.close(); } catch { } cleanup(); onEnd(finalText.trim(), err); };
+    if (rec) { try { rec.stopContinuousRecognitionAsync(done, done); } catch { done(); } } else done();
+  };
+  // Automatisch beenden: 2,5 s Stille nach dem Sprechen, 10 s ohne Sprache am Anfang, höchstens 60 s
+  const armIdle = ms => { clearTimeout(idleTimer); idleTimer = setTimeout(() => finish(), ms); };
+  stopTimer = setTimeout(() => finish(), 60000);
+  (async () => {
+    try {
+      onState('start');
+      stream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true, channelCount: 1 } });
+      if (closed) return cleanup();
+      const [SDK, token] = await Promise.all([dzLoadSdk(), dzToken()]);
+      if (closed) return cleanup();
+      const cfg = dzAzureCfg();
+      const sc = SDK.SpeechConfig.fromAuthorizationToken(`aad#${cfg.speechResourceId}#${token}`, cfg.speechRegion);
+      sc.speechRecognitionLanguage = 'de-DE';
+      sc.setProperty(SDK.PropertyId.Speech_SegmentationSilenceTimeoutMs, '900');
+      push = SDK.AudioInputStream.createPushStream(SDK.AudioStreamFormat.getWaveFormatPCM(16000, 16, 1));
+      rec = new SDK.SpeechRecognizer(sc, SDK.AudioConfig.fromStreamInput(push));
+      // Wortliste: so schreibt der Dienst Projekt- und Tag-Namen richtig
+      const pl = SDK.PhraseListGrammar.fromRecognizer(rec), seen = new Set();
+      const add = n => { n = String(n || '').trim(); if (n && !seen.has(n)) { seen.add(n); pl.addPhrase(n); } };
+      visibleProjects().filter(p => !p.archived).forEach(p => { add(p.name); add(client(p.clientId)?.name); });
+      S.tags.forEach(t => add(t.name));
+      rec.recognizing = (s, e) => { onText((finalText + ' ' + e.result.text).trim()); armIdle(3500); };
+      rec.recognized = (s, e) => {
+        if (e.result.reason === SDK.ResultReason.RecognizedSpeech && e.result.text) { finalText = (finalText + ' ' + e.result.text).trim(); onText(finalText); }
+        armIdle(2500);
+      };
+      rec.canceled = (s, e) => { if (e.reason === SDK.CancellationReason.Error) finish(new Error(e.errorDetails || 'Sprachdienst nicht erreichbar')); };
+      // Mikrofon → 16 kHz, 16 Bit, mono
+      src = ctx.createMediaStreamSource(stream);
+      proc = ctx.createScriptProcessor(4096, 1, 1);
+      const ratio = ctx.sampleRate / 16000;
+      proc.onaudioprocess = ev => {
+        if (closed) return;
+        const inp = ev.inputBuffer.getChannelData(0), n = Math.floor(inp.length / ratio), out = new Int16Array(n);
+        for (let i = 0; i < n; i++) { const v = Math.max(-1, Math.min(1, inp[Math.floor(i * ratio)])); out[i] = v < 0 ? v * 0x8000 : v * 0x7fff; }
+        push.write(out.buffer);
+      };
+      src.connect(proc); proc.connect(ctx.destination);
+      rec.startContinuousRecognitionAsync(() => { onState('listening'); armIdle(10000); }, err => finish(new Error(String(err))));
+    } catch (e) {
+      finish(e.name === 'NotAllowedError' ? Object.assign(new Error('Die App darf das Mikrofon nicht verwenden.'), { mic: true }) : e);
+    }
+  })();
+  return { stop: () => finish(), abort: () => { closed || (rec ? finish() : (cleanup(), onEnd(finalText, null))); } };
+}
+
+// Aufnahme über die Spracherkennung des Browsers (Chrome/Edge am PC)
+function dzWebSession({ onText, onState, onEnd }) {
+  const SR = dzWebSpeech(), rec = new SR();
+  rec.lang = 'de-DE'; rec.interimResults = true; rec.continuous = false;
+  let text = '', err = null, ended = false;
+  let watchdog = setTimeout(() => { try { rec.abort(); } catch { } }, 12000);
+  rec.onresult = ev => { text = ''; for (const r of ev.results) text += r[0].transcript; onText(text); clearTimeout(watchdog); watchdog = setTimeout(() => { try { rec.stop(); } catch { } }, 4000); };
+  rec.onerror = ev => { if (ev.error !== 'no-speech' && ev.error !== 'aborted') err = Object.assign(new Error(ev.error === 'not-allowed' || ev.error === 'service-not-allowed' ? 'Die App darf das Mikrofon nicht verwenden.' : 'Die Spracherkennung ist hier nicht verfügbar.'), { mic: true }); };
+  rec.onend = () => { if (ended) return; ended = true; clearTimeout(watchdog); onEnd(text.trim(), err); };
+  try { rec.start(); onState('listening'); } catch (e) { ended = true; onEnd('', e); }
+  return { stop: () => { try { rec.stop(); } catch { } }, abort: () => { try { rec.abort(); } catch { } } };
+}
+
+/* ---------- Dialog ---------- */
+// Wird direkt aus dem Tipp auf den roten Knopf aufgerufen: Die Aufnahme startet sofort.
 function openDictate() {
-  const SR = dzSpeech();
+  const engine = dzEngine();
   const ex = visibleProjects().find(p => !p.archived)?.name || 'Projektname';
-  let res = null, rec = null, listening = false;
+  let res = null, session = null, listening = false, base = '';
   openModal(`<h2>${ic('mic')} Zeit diktieren</h2>
-    <p class="muted" style="margin-top:-8px">Sprechen oder schreiben Sie z. B.: <i>„Baustellenbegehung ${esc(ex)}, heute von 9 bis 12 Uhr“</i></p>
-    <div class="dz-input">
-      <textarea id="dz-text" class="ef-comment" rows="3" placeholder="Tätigkeit, Projekt, Tag, von … bis …"></textarea>
-      ${SR ? `<button type="button" class="dz-mic" id="dz-mic" title="Spracheingabe starten">${ic('mic')}</button>` : ''}
+    <div class="dz-rec">
+      <button type="button" class="dz-big" id="dz-mic" aria-label="Aufnahme starten oder beenden">${ic('mic')}</button>
+      <div class="dz-state" id="dz-state"></div>
     </div>
-    <p class="dz-hint muted small" id="dz-hint">${SR ? 'Mikrofon antippen und sprechen. Klappt das nicht: ' : ''}${dzOsHint()}</p>
+    <div class="dz-input"><textarea id="dz-text" class="ef-comment" rows="3" placeholder="z. B. „Baustellenbegehung ${esc(ex)}, heute von 9 bis 12 Uhr“"></textarea></div>
+    <p class="dz-hint muted small" id="dz-hint"></p>
     <div id="dz-result"></div>
-    <div class="modal-actions"><span class="muted small">Version ${APP_VERSION}</span><span class="grow"></span>
+    <div class="modal-actions"><span class="muted small">${engine === 'azure' ? 'Microsoft-Sprachdienst' : 'Spracherkennung des Geräts'} · ${APP_VERSION}</span><span class="grow"></span>
       <button class="btn ghost" data-action="close-modal">Abbrechen</button>
       <button class="btn primary" id="dz-save" disabled>Speichern</button></div>`, m => {
-    const ta = $('#dz-text', m), out = $('#dz-result', m), saveBtn = $('#dz-save', m);
+    const ta = $('#dz-text', m), out = $('#dz-result', m), saveBtn = $('#dz-save', m), mic = $('#dz-mic', m), st = $('#dz-state', m), hint = $('#dz-hint', m);
+    const setState = s => {
+      listening = s === 'listening' || s === 'start';
+      mic.classList.toggle('on', s === 'listening'); mic.classList.toggle('wait', s === 'start');
+      st.innerHTML = s === 'start' ? 'Mikrofon wird gestartet …'
+        : s === 'listening' ? '<b>Ich höre zu …</b> Projekt, Tag und Uhrzeit sagen. Zum Beenden tippen oder kurz schweigen.'
+        : s === 'kbd' ? `<b>So diktierst du hier:</b> ${dzOsHint()}`
+        : 'Zum Diktieren auf das <b>Mikrofon</b> tippen. Text lässt sich unten auch korrigieren.';
+    };
     const draw = () => {
       if (!ta.value.trim()) { out.innerHTML = ''; res = null; saveBtn.disabled = true; return; }
       res = parseDictation(ta.value);
@@ -210,11 +327,11 @@ function openDictate() {
         <div class="dz-head">Erkannt – bitte prüfen</div>
         <label class="field"><span>Projekt ${res.projectId ? '<span class="dz-ok">✓ erkannt</span>' : '<span class="dz-miss">bitte wählen</span>'}</span>
           <select id="dz-proj"><option value="">– Projekt wählen –</option>${projOpts.map(p => `<option value="${p.id}" ${p.id === res.projectId ? 'selected' : ''}>${esc(p.name)}</option>`).join('')}</select></label>
-        ${!res.projectId && res.candidates.length ? `<div class="dz-cands">Meinten Sie: ${res.candidates.map(p => `<button type="button" class="chip dz-cand" data-pid="${p.id}">${esc(p.name)}</button>`).join(' ')}</div>` : ''}
+        ${!res.projectId && res.candidates.length ? `<div class="dz-cands">Meinst du: ${res.candidates.map(p => `<button type="button" class="chip dz-cand" data-pid="${p.id}">${esc(p.name)}</button>`).join(' ')}</div>` : ''}
         <div class="row3">
           <label class="field"><span>Datum</span><input type="date" id="dz-date" value="${res.date || ''}"></label>
-          <label class="field"><span>Beginn ${res.assumed.includes('Beginn') ? '<span class="dz-miss">angenommen</span>' : ''}</span><input type="time" id="dz-start" value="${res.start || ''}"></label>
-          <label class="field"><span>Ende</span><input type="time" id="dz-end" value="${res.end || ''}"></label>
+          <div class="field"><span>Beginn ${res.assumed.includes('Beginn') ? '<span class="dz-miss">angenommen</span>' : ''}</span>${timeSelHTML('dz-start', res.start || '')}</div>
+          <div class="field"><span>Ende</span>${timeSelHTML('dz-end', res.end || '')}</div>
         </div>
         <div class="field"><span>Tags</span><div class="dz-tags">${S.tags.length ? [...S.tags].sort(byName).map(t => `<button type="button" class="chip dz-tag ${res.tagIds.includes(t.id) ? 'on' : ''}" data-tid="${t.id}">${esc(t.name)}</button>`).join(' ') : '<span class="muted">keine Tags angelegt</span>'}</div></div>
         <label class="field"><span>Kommentar</span><input id="dz-comment" value="${esc(res.comment)}"></label>
@@ -231,46 +348,42 @@ function openDictate() {
       out.querySelectorAll('.dz-tag').forEach(b => b.addEventListener('click', () => b.classList.toggle('on')));
       sum();
     };
-    // Auswerten erst, wenn kurz nichts Neues kommt (Diktat liefert Text stückweise)
     let deb;
     ta.addEventListener('input', () => { clearTimeout(deb); deb = setTimeout(draw, 250); });
     ta.addEventListener('blur', () => { clearTimeout(deb); draw(); });
-    // Abbrechen: laufende Aufnahme sicher beenden
-    m.addEventListener('click', ev => { if (ev.target.closest('[data-action="close-modal"]')) { try { rec?.abort(); } catch { } } });
-    ta.focus();
-    if (SR) {
-      const mic = $('#dz-mic', m);
-      mic.addEventListener('click', () => {
-        if (listening) { rec?.stop(); return; }
-        rec = new SR(); rec.lang = 'de-DE'; rec.interimResults = true; rec.continuous = false;
-        const base = ta.value ? ta.value.trim() + ' ' : '';
-        // Sicherung: kommt 12 s lang nichts an, Aufnahme beenden statt hängen zu bleiben
-        let watchdog = setTimeout(() => { try { rec.abort(); } catch { } }, 12000);
-        const feed = () => { clearTimeout(watchdog); watchdog = setTimeout(() => { try { rec.stop(); } catch { } }, 4000); };
-        rec.onresult = ev => { let t = ''; for (const r of ev.results) t += r[0].transcript; ta.value = base + t; feed(); clearTimeout(deb); deb = setTimeout(draw, 150); };
-        rec.onerror = ev => {
-          if (ev.error === 'no-speech' || ev.error === 'aborted') return;
-          // Mikrofon nicht erlaubt / nicht verfügbar: Ausweichweg direkt im Fenster erklären
-          const denied = ev.error === 'not-allowed' || ev.error === 'service-not-allowed';
-          $('#dz-hint', m).innerHTML = `<span class="dz-miss">${denied ? 'Die App darf das Mikrofon hier nicht verwenden.' : 'Die Spracherkennung ist hier nicht verfügbar.'}</span><br>
-            So geht es trotzdem: ${dzOsHint()}
-            ${dzInTeams() ? '<br>In Teams: Zeiterfassung links mit Rechtsklick → <b>App-Berechtigungen</b> (bzw. „…“ → Berechtigungen) → <b>Medien/Mikrofon</b> erlauben. Oder <a href="' + location.origin + location.pathname + '" target="_blank" rel="noopener">im Browser öffnen</a>.' : denied ? '<br>Oder das Mikrofon in den Browser- bzw. Geräteeinstellungen für diese Seite erlauben.' : ''}`;
-          mic.hidden = !!denied;
-          ta.focus();
-        };
-        rec.onend = () => { clearTimeout(watchdog); listening = false; mic.classList.remove('on'); draw(); };
-        try { rec.start(); listening = true; mic.classList.add('on'); } catch { toast('Spracheingabe nicht verfügbar'); }
-      });
-    }
+    const toKeyboard = (msg) => { // Rückfall: Diktierfunktion der Tastatur
+      setState('kbd');
+      if (msg) hint.innerHTML = `<span class="dz-miss">${esc(msg)}</span>${dzInTeams() ? ' In Teams: Zeiterfassung links mit Rechtsklick → <b>App-Berechtigungen</b> → <b>Medien</b> erlauben.' : ''}`;
+      ta.focus();
+    };
+    const start = () => {
+      const eng = dzEngine();
+      if (eng === 'kbd') return toKeyboard();
+      base = ta.value.trim();
+      hint.textContent = '';
+      const opts = {
+        onText: t => { ta.value = (base ? base + ' ' : '') + t; clearTimeout(deb); deb = setTimeout(draw, 300); },
+        onState: setState,
+        onEnd: (t, err) => {
+          session = null; setState('idle'); draw();
+          if (err) toKeyboard(err.message);
+          else if (!t && !base) st.innerHTML = 'Nichts verstanden. Nochmal auf das <b>Mikrofon</b> tippen und deutlich sprechen.';
+        }
+      };
+      session = eng === 'azure' ? dzAzureSession(opts) : dzWebSession(opts);
+    };
+    mic.addEventListener('click', () => { if (session) session.stop(); else start(); });
+    UI.onModalClose = () => session?.abort(); // Fenster zu (auch per Klick daneben) → Mikrofon aus
     saveBtn.addEventListener('click', () => {
       const date = $('#dz-date', out).value, [s, e] = rangeFrom(date, $('#dz-start', out).value, $('#dz-end', out).value);
       if (s == null) return;
       const pid = $('#dz-proj', out).value || null, p = proj(pid);
       const tagIds = [...out.querySelectorAll('.dz-tag.on')].map(b => b.dataset.tid);
       S.entries.push({ id: uid(), description: $('#dz-comment', out).value.trim(), projectId: pid, tagIds, billable: !!p?.billable, start: s, end: e });
-      try { rec?.stop(); } catch { }
       save(); closeModal(); render();
       toast(`Gespeichert: ${p ? p.name + ', ' : ''}${fmtD(s)} ${fmtTime(s)}–${fmtTime(e)}`);
     });
+    setState('idle');
+    start(); // sofort aufnehmen – noch innerhalb des Tipps auf den roten Knopf
   });
 }

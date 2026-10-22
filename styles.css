@@ -550,3 +550,23 @@ table.tbl { width: 100%; border-collapse: collapse; }
   .rep-bar .rep-q { max-width: none; }
 }
 @media (max-width: 760px) { .toolbar #proj-q, .toolbar #user-q { flex: 1 1 100%; } }
+
+/* ---------- 1.12: Uhrzeit als Stunde : Minute (5-Minuten-Takt) ---------- */
+.tsel { display: inline-flex; align-items: center; gap: 4px; }
+.tsel b { color: var(--muted-2); font-weight: 600; }
+.tsel select { height: 40px; min-width: 58px; border: 1px solid var(--border); border-radius: 4px; padding: 0 6px; background: var(--surface); color: var(--text); font-size: 15px; font-variant-numeric: tabular-nums; }
+.tsel select:focus { outline: none; border-color: var(--accent); }
+.field .tsel select { flex: 1; }
+@media (max-width: 760px) { .ef-times .tsel { width: 100%; } .ef-times .tsel select { flex: 1; min-width: 0; } }
+
+/* ---------- 1.13: Diktieren mit einem Tipp ---------- */
+.dz-rec { display: flex; align-items: center; gap: 14px; margin: 0 0 14px; }
+.dz-big { flex: none; width: 64px; height: 64px; border-radius: 50%; display: grid; place-items: center; background: var(--danger); color: #fff; box-shadow: 0 4px 14px rgba(244,67,54,.35); transition: transform .1s; }
+.dz-big:active { transform: scale(.94); }
+.dz-big .ic { width: 30px; height: 30px; }
+.dz-big.wait { opacity: .7; }
+.dz-big.on { animation: dzPulse 1.3s ease-in-out infinite; }
+@keyframes dzPulse { 0%, 100% { box-shadow: 0 0 0 0 rgba(244,67,54,.55); } 50% { box-shadow: 0 0 0 14px rgba(244,67,54,0); } }
+.dz-state { font-size: 14px; line-height: 1.45; color: var(--muted-2); }
+.dz-state b { color: var(--text); }
+@media (max-width: 760px) { .modal .row3 { grid-template-columns: 1fr 1fr; } .modal .row3 > :first-child { grid-column: 1 / -1; } .field .tsel { width: 100%; } .field .tsel select { min-width: 0; } }

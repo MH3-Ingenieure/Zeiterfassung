@@ -1,11 +1,22 @@
 # Zeiterfassung – Änderungsprotokoll
 
-Aktuelles Release: **1.11.0** vom 10.10.2026
+Aktuelles Release: **1.13.0** vom 22.10.2026
 
 Nummerierung: *Hauptversion.Funktion.Korrektur*. Neue Funktionen erhöhen die mittlere Zahl, reine Korrekturen die letzte.
 Die gleiche Liste ist in der App unter **Einstellungen → Über diese App → Änderungsprotokoll anzeigen** zu sehen (Quelle: `version.js`).
 
 ---
+
+## 1.13.0 – 22.10.2026 – Diktieren mit einem Tipp (Microsoft-Sprachdienst)
+- Roter Knopf „Zeit diktieren“ startet sofort die Aufnahme (iPhone, Teams, Browser); Ende nach kurzer Stille.
+- Azure AI Speech mit Anmeldung über das Firmenkonto (Entra-Token, keine Schlüssel im Code); Wortliste aus Projekt-, Kunden- und Tag-Namen.
+- Rückfall auf die Diktierfunktion des Geräts; Teams-Paket wieder mit Mikrofon-Berechtigung.
+- Neue Einträge in `config.js`: `speechRegion`, `speechResourceId` (auf GitHub direkt bearbeiten).
+- Geänderte Dateien: `dictate.js` (wieder da), `app.js`, `cloud.js`, `help.js`, `index.html`, `styles.css`, `version.js`, `sw.js`, `CHANGELOG.md`
+
+## 1.12.0 – 22.10.2026 – Uhrzeit in 5-Minuten-Schritten
+- Beginn/Ende als Auswahl Stunde : Minute (5-Minuten-Takt), im Eingabefenster und beim Bearbeiten; Minute „00“ wird nach Wahl der Stunde vorbelegt.
+- Geänderte Dateien: `app.js`, `styles.css`, `version.js`, `sw.js`, `CHANGELOG.md`
 
 ## 1.11.0 – 10.10.2026 – Diktierfunktion entfernt
 - „Zeit diktieren“ entfällt (Startseite, Eingabefenster, Hilfe); Teams-Paket ohne Mikrofon-Berechtigung.

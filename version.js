@@ -5,10 +5,26 @@
    CHANGELOG.md und den Cache-Namen in sw.js mitziehen.
    Nummerierung: Hauptversion.Funktion.Korrektur (z. B. 1.9.1)
    ===================================================================== */
-const APP_VERSION = '1.11.0';
-const APP_RELEASE_DATE = '10.10.2026';
+const APP_VERSION = '1.13.0';
+const APP_RELEASE_DATE = '22.10.2026';
 
 const CHANGELOG = [
+  {
+    v: '1.13.0', date: '22.10.2026', title: 'Diktieren mit einem Tipp (Microsoft-Sprachdienst)', items: [
+      '„Zeit diktieren“ ist zurück: Ein Tipp auf den roten Knopf startet sofort die Aufnahme – auch auf dem iPhone und in Teams. Kurz schweigen beendet sie.',
+      'Spracherkennung über den Microsoft Azure Sprachdienst mit dem Firmenkonto; Projekt-, Kunden- und Tag-Namen werden als Wortliste mitgegeben und dadurch richtig geschrieben.',
+      'Ohne eingerichteten Sprachdienst oder ohne Internet: Hinweis auf die Diktierfunktion des Geräts.',
+      'Projekterkennung verbessert: ganzer Projektname im Text = sicherer Treffer. Uhrzeiten im Diktierfenster im 5-Minuten-Takt.',
+      'Teams-App-Paket fordert wieder die Mikrofon-Berechtigung an.'
+    ]
+  },
+  {
+    v: '1.12.0', date: '22.10.2026', title: 'Uhrzeit in 5-Minuten-Schritten', items: [
+      'Beginn und Ende werden über zwei Auswahllisten eingegeben: Stunde und Minute in 5-Minuten-Schritten (00, 05, 10 … 55). Auf dem iPhone erscheint ein Drehrad.',
+      'Nach Wahl der Stunde ist die Minute mit „00“ vorbelegt.',
+      'Gilt im Eingabefenster und beim Bearbeiten eines Eintrags; vorhandene Zeiten außerhalb des 5-Minuten-Takts (z. B. aus dem Timer) bleiben unverändert.'
+    ]
+  },
   {
     v: '1.11.0', date: '10.10.2026', title: 'Diktierfunktion entfernt', items: [
       '„Zeit diktieren“ entfällt (Startseite und Eingabefenster): Die Spracheingabe war auf iPhone und in Teams nicht zuverlässig genug. Zeiten werden wie gewohnt über das Eingabefenster eingetragen.',

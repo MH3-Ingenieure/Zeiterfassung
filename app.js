@@ -67,6 +67,24 @@ function fmtClock(ms) {
 function fmtDec(ms) { return (ms / HOUR).toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 }); }
 function fmtDur(ms) { return S.settings.durationFormat === 'decimal' ? fmtDec(ms) + ' h' : fmtClock(ms); }
 function fmtTime(ts) { const d = new Date(ts); return pad(d.getHours()) + ':' + pad(d.getMinutes()); }
+// Uhrzeit als zwei Auswahllisten: Stunde 0–23, Minute in 5-Minuten-Schritten (auf dem iPhone als Drehrad).
+// Das versteckte Feld mit der id trägt den Wert „hh:mm“, damit das übrige Formular unverändert bleibt.
+// Eine vorhandene Minute außerhalb des 5er-Takts (z. B. aus dem Timer) bleibt als eigene Option erhalten.
+function timeSelHTML(id, value = '') {
+  const [h, m] = /^\d{2}:\d{2}$/.test(value) ? value.split(':') : ['', ''];
+  const mins = Array.from({ length: 12 }, (_, i) => pad(i * 5));
+  if (m && !mins.includes(m)) mins.push(m), mins.sort();
+  const o = (v, cur) => `<option value="${v}" ${v === cur ? 'selected' : ''}>${v === '' ? '--' : v}</option>`;
+  return `<span class="tsel"><select data-tsel="h" aria-label="Stunde">${o('', h)}${Array.from({ length: 24 }, (_, i) => o(pad(i), h)).join('')}</select><b>:</b><select data-tsel="m" aria-label="Minute">${o('', m)}${mins.map(v => o(v, m)).join('')}</select><input type="hidden" id="${id}" value="${h && m ? value : ''}"></span>`;
+}
+document.addEventListener('change', ev => {
+  const sel = ev.target.closest?.('select[data-tsel]');
+  if (!sel) return;
+  const box = sel.parentElement, [hs, ms] = box.querySelectorAll('select'), hid = box.querySelector('input');
+  if (sel === hs && hs.value && !ms.value) ms.value = '00'; // Stunde gewählt → volle Stunde vorbelegen
+  hid.value = hs.value && ms.value ? hs.value + ':' + ms.value : '';
+  hid.dispatchEvent(new Event('input', { bubbles: true }));
+});
 function fmtD(ts) { return new Date(ts).toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric' }); }
 function dateStr(ts) { const d = new Date(ts); return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`; }
 function todayStr() { return dateStr(Date.now()); }
@@ -233,7 +251,8 @@ function timerBarHTML() {
   const manual = S.settings.trackMode !== 'timer' && !r;
   const m = UI.manual;
   return `<div class="card entry-form ${r ? 'running' : ''}">
-    <div class="ef-title">${r ? `${ic('clock')} Timer läuft` : manual ? 'Zeit eintragen' : `${ic('clock')} Zeit mit Timer erfassen`}</div>
+    <div class="ef-title">${r ? `${ic('clock')} Timer läuft` : manual ? 'Zeit eintragen' : `${ic('clock')} Zeit mit Timer erfassen`}
+      ${r ? '' : `<button class="btn small dz-btn ef-dict" data-action="dictate">${ic('mic')} diktieren</button>`}</div>
     <div class="ef-field">
       <span class="ef-label">Projekt</span>
       <button class="ef-proj" data-action="pick-project" data-target="timer">${projLabel(d.projectId, 'Projekt wählen')}<span class="ef-change">${d.projectId ? 'ändern' : ''}</span></button>
@@ -246,8 +265,8 @@ function timerBarHTML() {
     </div>
     ${manual ? `<div class="ef-row ef-times">
         <label class="ef-mini"><span>Datum</span><input type="date" id="m-date" value="${m.date}"></label>
-        <label class="ef-mini"><span>Beginn</span><input type="time" id="m-start" value="${m.start}"></label>
-        <label class="ef-mini"><span>Ende</span><input type="time" id="m-end" value="${m.end}"></label>
+        <div class="ef-mini"><span>Beginn</span>${timeSelHTML('m-start', m.start)}</div>
+        <div class="ef-mini"><span>Ende</span>${timeSelHTML('m-end', m.end)}</div>
         <div class="ef-mini"><span>Dauer</span><b class="m-dur" id="m-dur">0:00:00</b></div>
         <button class="btn primary ef-main" data-action="add-manual">HINZUFÜGEN</button>
       </div>
@@ -442,7 +461,10 @@ function openModal(html, mount) {
   bd.addEventListener('mousedown', e => { if (e.target === bd) closeModal(); });
   mount && mount($('.modal', root));
 }
-function closeModal() { $('#modal-root').innerHTML = ''; UI.modalDraft = null; }
+function closeModal() {
+  const f = UI.onModalClose; UI.onModalClose = null; try { f?.(); } catch { } // z. B. laufende Aufnahme beenden
+  $('#modal-root').innerHTML = ''; UI.modalDraft = null;
+}
 
 function openProjectPicker(anchor, target) {
   const cur = targetObj(target)?.projectId || null;
@@ -594,8 +616,8 @@ function renderEntryModal() {
     <label class="check"><input type="checkbox" id="md-bill" ${d.billable ? 'checked' : ''}> Abrechenbar</label>
     <div class="row3">
       <label class="field"><span>Datum</span><input type="date" id="md-date" value="${d.date}"></label>
-      <label class="field"><span>Beginn</span><input type="time" id="md-start" value="${d.startT}"></label>
-      <label class="field"><span>Ende</span><input type="time" id="md-end" value="${d.endT}"></label>
+      <div class="field"><span>Beginn</span>${timeSelHTML('md-start', d.startT)}</div>
+      <div class="field"><span>Ende</span>${timeSelHTML('md-end', d.endT)}</div>
     </div>
     <div class="md-dur">Dauer: <b id="md-dur"></b></div>
     <div class="modal-actions">
@@ -1074,7 +1096,8 @@ const canTrack = () => { const r = role(); return !!(r.local || r.admin || r.ma 
 function viewProjects() {
   return `<div class="page">
     <div class="page-head"><h1>${canSeeAllProjects() ? 'Projekte' : 'Meine Projekte'}</h1></div>
-    ${canTrack() ? `<p class="page-hint">Auf einen <b>Projektnamen</b> klicken, um Zeiten für dieses Projekt einzutragen.</p>` : ''}
+    ${canTrack() ? `<div class="dz-start"><button class="btn dz-btn" data-action="dictate">${ic('mic')} Zeit diktieren</button>
+      <span class="page-hint">oder auf einen <b>Projektnamen</b> klicken, um Zeiten für dieses Projekt einzutragen.</span></div>` : ''}
     <div class="card">
       <div class="toolbar">
         <input type="search" id="proj-q" placeholder="Projekt suchen…" value="${esc(UI.projQ)}">
@@ -1339,6 +1362,7 @@ async function downloadTeamsPackage() {
       accentColor: '#03A9F4',
       staticTabs: [{ entityId: 'zeiterfassung', name: 'Zeiterfassung', contentUrl: base + '?teams=1#/projects', websiteUrl: base, scopes: ['personal'] }],
       permissions: ['identity'],
+      devicePermissions: ['media'], // Mikrofon für „Zeit diktieren“ in Teams
       validDomains: [location.host]
     };
     const color = new Uint8Array(await (await fetch('icons/icon-192.png', { cache: 'no-store' })).arrayBuffer());
@@ -1530,6 +1554,7 @@ const ACTIONS = {
   'rep-print': () => window.print(),
   'rep-export': el => openExportMenu(el),
   'user-seg': el => { UI.userSeg = el.dataset.seg; render(); },
+  'dictate': () => openDictate(),
   'rep-filter': el => openReportFilter(el.dataset.page || ''),
   'rep-clear': () => { Object.assign(UI.report, { userIds: [], clientIds: [], projectIds: [], tagIds: [], billOnly: false }); if (UI.report.groupBy === 'user') UI.report.groupBy = 'project'; render(); },
   'new-project': () => openProjectModal(null),
@@ -1706,5 +1731,6 @@ async function updateNow() {
 }
 setTimeout(checkForUpdate, 3000);
 setInterval(checkForUpdate, 30 * 60000); // Teams hält die App oft tagelang offen
+setTimeout(() => window.dzWarm?.(), 6000); // Sprachdienst vorladen, damit das Diktieren sofort startet
 document.addEventListener('visibilitychange', () => { if (!document.hidden) checkForUpdate(); });
 if (navigator.storage?.persist) navigator.storage.persist().catch(() => {});

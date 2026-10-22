@@ -780,6 +780,7 @@ const Cloud = (() => {
     signedIn: () => enabled && !!account,
     inTeams: () => teamsMode,
     repaint: () => paint(),
+    token: scopes => getToken(scopes), // z. B. für den Sprachdienst (Diktieren)
     config: () => ({ ...cfg }),
     account: () => account,
     meId: () => S.sync?.userId || null,

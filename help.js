@@ -28,6 +28,16 @@ const HELP = [
     <p>Das Projekt bleibt danach gewählt und der nächste Beginn ist mit dem letzten Ende vorbelegt – so tragen Sie mehrere Tätigkeiten hintereinander schnell ein. Am PC fügt <b>Strg + Enter</b> im Kommentarfeld den Eintrag hinzu.</p>`
   },
   {
+    roles: 'all', title: 'Zeit diktieren (Spracheingabe)', body: `
+    <ol>
+      <li>Auf den roten Knopf <b>„Zeit diktieren“</b> tippen (Startseite oder Eingabefenster). Die Aufnahme startet sofort – ein Projekt muss vorher nicht geöffnet sein.</li>
+      <li>Sprechen, z. B. „Baustellenbegehung <i>Bürogebäude</i>, heute von 9 bis 12 Uhr“. Kurz schweigen oder auf das Mikrofon tippen beendet die Aufnahme.</li>
+      <li>Die App zeigt das Erkannte: <b>Projekt, Datum, Beginn, Ende, Tags, Kommentar</b>. Alles lässt sich korrigieren, dann <b>Speichern</b>.</li>
+    </ol>
+    <p>Beim ersten Mal fragt das Gerät bzw. Teams, ob die App das Mikrofon verwenden darf – bitte <b>Erlauben</b>. Klappt die Aufnahme nicht (z. B. ohne Internet), zeigt das Fenster, wie man mit der Diktierfunktion des Geräts spricht (iPhone: Mikrofon der Tastatur, Windows: Windows-Taste + H).</p>
+    <p>Tipps: Den <b>Projektnamen</b> mitsprechen. Ohne Datum = heute. Erkannt werden u. a. heute, gestern, Wochentage und Daten wie „12.10.“. Nur eine Dauer („90 Minuten“)? Dann wird der Beginn angenommen – bitte prüfen.</p>`
+  },
+  {
     roles: 'all', title: 'Timer (optional)', body: `
     <ol>
       <li>Im Eingabefenster unten auf <b>„stattdessen Timer starten“</b> tippen.</li>
