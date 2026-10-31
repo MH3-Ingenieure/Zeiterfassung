@@ -577,3 +577,10 @@ table.tbl { width: 100%; border-collapse: collapse; }
 .dz-card + .dz-card { margin-top: 12px; }
 .dz-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
 .dz-del .ic { width: 16px; height: 16px; }
+
+/* ---------- 1.14: Versionsanzeige in der Menüleiste ---------- */
+.sidebar { display: flex; flex-direction: column; }
+.nav-version { margin-top: auto; padding: 14px 20px 6px; text-align: left; font-size: 12px; color: var(--muted); }
+.nav-version:hover { color: var(--accent); text-decoration: underline; }
+@media (min-width: 761px) { body.nav-collapsed .nav-version { padding: 14px 4px 6px; text-align: center; font-size: 10px; } body.nav-collapsed .nav-version span { display: none; } }
+@media (max-width: 760px) { .nav-version { padding-bottom: calc(14px + env(safe-area-inset-bottom)); } }

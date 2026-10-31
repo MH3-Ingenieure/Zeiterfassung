@@ -208,7 +208,9 @@ function renderNav() {
   const nav = canManageUsers() ? [...NAV.slice(0, 5), ['users', 'shield', 'Benutzer & Rollen'], ...NAV.slice(5)] : NAV;
   $('#sidebar').innerHTML = nav.map(([r, i, t], n) =>
     (n === 3 || r === 'settings' ? '<div class="nav-sep"></div>' : '') +
-    `<a class="nav-link" href="#/${r}" data-route="${r}" title="${t}">${ic(i)}<span>${t}</span></a>`).join('');
+    `<a class="nav-link" href="#/${r}" data-route="${r}" title="${t}">${ic(i)}<span>${t}</span></a>`).join('') +
+    // aktuelle Version immer sichtbar (am Handy unter „Mehr“); Klick zeigt das Änderungsprotokoll
+    `<button class="nav-version" data-action="changelog" title="Änderungsprotokoll anzeigen">Version ${APP_VERSION}<span> · ${APP_RELEASE_DATE}</span></button>`;
   $('#bottombar').innerHTML = NAV.slice(0, 3).map(([r, i, t]) =>
     `<a href="#/${r}" data-route="${r}">${ic(i)}<span>${r === 'tracker' ? 'Zeiten' : t}</span></a>`).join('') +
     `<button data-action="toggle-nav">${ic('menu')}<span>Mehr</span></button>`;

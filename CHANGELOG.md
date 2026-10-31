@@ -12,7 +12,8 @@ Die gleiche Liste ist in der App unter **Einstellungen → Über diese App → �
 - Datumsspannen („vom 28.10. bis 30.10. jeweils“, „Montag bis Mittwoch“) → ein Eintrag pro Tag.
 - Kontrollfenster mit Karten, ✕ zum Herausnehmen, „Alle speichern“; Aufnahme bis 3 Minuten, 3,5 s Pause erlaubt.
 - Tätigkeit (Tag) je Eintrag; Aufteilung an Satzzeichen/„und“; Tätigkeit am Anfang gilt für alle; Tätigkeitswörter zählen bei der Projektsuche nur schwach.
-- Geänderte Dateien: `dictate.js`, `help.js`, `styles.css`, `version.js`, `sw.js`, `CHANGELOG.md`
+- Versionsnummer dauerhaft unten in der Menüleiste (Handy: „Mehr“), Klick → Änderungsprotokoll.
+- Geänderte Dateien: `dictate.js`, `app.js`, `help.js`, `styles.css`, `version.js`, `sw.js`, `CHANGELOG.md`
 
 ## 1.13.1 – 22.10.2026 – Diktieren: bessere Zuordnung, Timer entfernt
 - „zwischen … und … Uhr“; Dauer neben Uhrzeit wird ignoriert; Projektnamen mit Punkt/zusammengeschrieben/anderer Endung; Kommentar enthält nur noch den Rest (ohne Projekt-, Kunden- und Tag-Wörter).

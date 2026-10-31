@@ -15,6 +15,7 @@ const CHANGELOG = [
       'Zeiträume: „vom 28.10. bis 30.10. jeweils von 8 bis 12“ oder „Montag bis Mittwoch jeweils …“ → ein Eintrag pro Tag.',
       'Kontrollfenster mit allen erkannten Einträgen; einzelne mit ✕ herausnehmen, dann „Alle speichern“.',
       'Tätigkeit je Eintrag: vor oder hinter Projekt bzw. Uhrzeit sprechen („… von 8 bis 12 Kanzler UKD Planung, …“). Eine Tätigkeit ganz am Anfang („Planung: …“) gilt für alle Einträge. „Besprechung mit dem Bauherrn“ bleibt als Kommentar erhalten.',
+      'Die aktuelle Version steht jetzt immer unten in der Menüleiste (am Handy unter „Mehr“); ein Klick zeigt das Änderungsprotokoll.',
       'Projektwörter wie „Umkleideprojekte“ oder „Bauprojekt“ werden erkannt; Erzählform („habe ich … gearbeitet“) landet nicht im Kommentar. Aufnahme darf längere Denkpausen haben (bis 3 Minuten).'
     ]
   },
