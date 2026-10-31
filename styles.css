@@ -570,3 +570,10 @@ table.tbl { width: 100%; border-collapse: collapse; }
 .dz-state { font-size: 14px; line-height: 1.45; color: var(--muted-2); }
 .dz-state b { color: var(--text); }
 @media (max-width: 760px) { .modal .row3 { grid-template-columns: 1fr 1fr; } .modal .row3 > :first-child { grid-column: 1 / -1; } .field .tsel { width: 100%; } .field .tsel select { min-width: 0; } }
+
+/* ---------- 1.14: Stapeleingabe per Sprache ---------- */
+.dz-batch-head { display: flex; align-items: center; gap: 8px; padding: 10px 12px; margin-bottom: 10px; border-radius: 8px; background: rgba(3,169,244,.10); font-size: 14px; }
+.dz-batch-head .ic { width: 18px; height: 18px; color: var(--accent-d); }
+.dz-card + .dz-card { margin-top: 12px; }
+.dz-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.dz-del .ic { width: 16px; height: 16px; }

@@ -5,10 +5,19 @@
    CHANGELOG.md und den Cache-Namen in sw.js mitziehen.
    Nummerierung: Hauptversion.Funktion.Korrektur (z. B. 1.9.1)
    ===================================================================== */
-const APP_VERSION = '1.13.1';
-const APP_RELEASE_DATE = '22.10.2026';
+const APP_VERSION = '1.14.0';
+const APP_RELEASE_DATE = '31.10.2026';
 
 const CHANGELOG = [
+  {
+    v: '1.14.0', date: '31.10.2026', title: 'Stapeleingabe per Sprache', items: [
+      'Mehrere Zeiten in einem Diktat: „Am 28.10. von 8 bis 12 für Kanzler UKD und von 13 bis 18 Uhr für NRW Bank Umkleiden. Am 29.10. …“ → ein Eintrag je Zeitspanne, jeweils mit eigenem Datum und Projekt.',
+      'Zeiträume: „vom 28.10. bis 30.10. jeweils von 8 bis 12“ oder „Montag bis Mittwoch jeweils …“ → ein Eintrag pro Tag.',
+      'Kontrollfenster mit allen erkannten Einträgen; einzelne mit ✕ herausnehmen, dann „Alle speichern“.',
+      'Tätigkeit je Eintrag: vor oder hinter Projekt bzw. Uhrzeit sprechen („… von 8 bis 12 Kanzler UKD Planung, …“). Eine Tätigkeit ganz am Anfang („Planung: …“) gilt für alle Einträge. „Besprechung mit dem Bauherrn“ bleibt als Kommentar erhalten.',
+      'Projektwörter wie „Umkleideprojekte“ oder „Bauprojekt“ werden erkannt; Erzählform („habe ich … gearbeitet“) landet nicht im Kommentar. Aufnahme darf längere Denkpausen haben (bis 3 Minuten).'
+    ]
+  },
   {
     v: '1.13.1', date: '22.10.2026', title: 'Diktieren: bessere Zuordnung, Timer entfernt', items: [
       'Wird ein Kunde genannt („NRW Bank“), haben seine Projekte Vorrang; hat er nur ein offenes Projekt, wird dieses automatisch gewählt.',

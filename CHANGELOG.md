@@ -1,11 +1,18 @@
 # Zeiterfassung – Änderungsprotokoll
 
-Aktuelles Release: **1.13.1** vom 22.10.2026
+Aktuelles Release: **1.14.0** vom 31.10.2026
 
 Nummerierung: *Hauptversion.Funktion.Korrektur*. Neue Funktionen erhöhen die mittlere Zahl, reine Korrekturen die letzte.
 Die gleiche Liste ist in der App unter **Einstellungen → Über diese App → Änderungsprotokoll anzeigen** zu sehen (Quelle: `version.js`).
 
 ---
+
+## 1.14.0 – 31.10.2026 – Stapeleingabe per Sprache
+- Mehrere Zeitspannen in einem Diktat → mehrere Einträge (Datum gilt weiter bis zum nächsten genannten; Projekt vor oder hinter der Zeitspanne).
+- Datumsspannen („vom 28.10. bis 30.10. jeweils“, „Montag bis Mittwoch“) → ein Eintrag pro Tag.
+- Kontrollfenster mit Karten, ✕ zum Herausnehmen, „Alle speichern“; Aufnahme bis 3 Minuten, 3,5 s Pause erlaubt.
+- Tätigkeit (Tag) je Eintrag; Aufteilung an Satzzeichen/„und“; Tätigkeit am Anfang gilt für alle; Tätigkeitswörter zählen bei der Projektsuche nur schwach.
+- Geänderte Dateien: `dictate.js`, `help.js`, `styles.css`, `version.js`, `sw.js`, `CHANGELOG.md`
 
 ## 1.13.1 – 22.10.2026 – Diktieren: bessere Zuordnung, Timer entfernt
 - „zwischen … und … Uhr“; Dauer neben Uhrzeit wird ignoriert; Projektnamen mit Punkt/zusammengeschrieben/anderer Endung; Kommentar enthält nur noch den Rest (ohne Projekt-, Kunden- und Tag-Wörter).

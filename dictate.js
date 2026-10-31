@@ -89,7 +89,9 @@ const DZ_STOP = new Set(['und', 'der', 'die', 'das', 'fur', 'mit', 'von', 'bis',
 
 // Projekt: Wörter des Projektnamens (und Kunden) mit dem Text vergleichen
 function dzProjects(text) {
-  const words = dzNorm(text).split(' ').filter(w => w.length >= 2);
+  // „Umkleideprojekte“ → „umkleide“, „Bauprojekt“ → „bau“: das angehängte „…projekt“ sagt nichts über das Projekt
+  const words = dzNorm(text).split(' ').filter(w => w.length >= 2).map(w => w.match(/^(.{3,})projekt(?:e|en|es|s)?$/)?.[1] || w);
+  const tagWords = new Set(S.tags.flatMap(t => dzNorm(t.name).split(' ')));
   const scored = visibleProjects().filter(p => !p.archived).map(p => {
     const nameW = dzNorm(p.name).split(' ').filter(w => (w.length >= 3 || /\d/.test(w)) && !DZ_STOP.has(w));
     const cliW = dzNorm(client(p.clientId)?.name || '').split(' ').filter(w => w.length >= 3 && !DZ_STOP.has(w));
@@ -108,7 +110,8 @@ function dzProjects(text) {
       let best = 0, bw = null;
       for (const w of words) { const s = dzSim(w, nw); if (s > best) { best = s; bw = w; } }
       for (const [j, orig] of pairs) { const s = dzSim(j, nw); if (s > best) { best = s; bw = orig; } }
-      if (best >= 0.75) { sum += best; found++; if (best >= 0.85) strong++; hits.push(...bw.split(' ')); }
+      // Tätigkeitswörter („Planung“ in „TGA-Planung“) sind als Projekthinweis schwach – sie sind meist als Tag gemeint
+      if (best >= 0.75) { sum += best; found++; if (best >= 0.85 && !tagWords.has(nw)) strong++; hits.push(...bw.split(' ')); }
     }
     let score = sum / nameW.length;
     // ein markantes Wort genügt oft – aber nur bei einem richtigen Treffer, nicht wenn es bloß in einem
@@ -146,18 +149,106 @@ function dzTags(text) {
   return S.tags.filter(t => dzNorm(t.name).split(' ').filter(w => w.length >= 4).some(tw => words.some(w => dzTagWord(w, tw)))).map(t => t.id);
 }
 
+// Beginn/Ende aus „9“ und „12“, „halb 9“ und „viertel nach 11“ … → ['09:00', '12:00']
+function dzRangeTimes(p1, p2) {
+  const a = dzTime(p1.replace(/^(von|ab|um)\s+/i, '')), b = dzTime(p2);
+  if (!a || !b) return null;
+  if (a[0] >= 1 && a[0] <= 6) a[0] += 12;                              // „2 bis 4“ → nachmittags
+  if (b[0] * 60 + b[1] <= a[0] * 60 + a[1] && b[0] + 12 < 24 && (b[0] + 12) * 60 + b[1] > a[0] * 60 + a[1]) b[0] += 12; // „9 bis 2“ → 14 Uhr
+  return [dzHHMM(a), dzHHMM(b)];
+}
+
+/* ---------- Stapeleingabe: mehrere Zeiten in einem Diktat ----------
+   „Am 28.10. von 8 bis 12 für Kanzler UKD und von 13 bis 18 Uhr für NRW Bank Umkleiden.
+    Am 29.10. von 8 bis 13 Uhr Mülheim Forum …“ → ein Eintrag je Zeitspanne.
+   Datum: das zuletzt davor genannte Datum gilt weiter. Projekt: der Text direkt hinter der Zeitspanne
+   („von 8 bis 12 für …“) oder direkt davor („Kanzler UKD von 8 bis 12“) – je nachdem, was besser passt. */
+// Zeitspannen („von 8 bis 12“, „zwischen 14 und 15 Uhr“) – nicht innerhalb von Datumsangaben
+function dzRanges(text, skip = []) {
+  const out = [];
+  for (const re of [new RegExp(DZ_BETWEEN_RE.source, 'gi'), new RegExp(DZ_RANGE_RE.source, 'gi')]) {
+    let m;
+    while ((m = re.exec(text))) {
+      const s = m.index, e = s + m[0].length;
+      if ([...out, ...skip].some(o => s < o.end && e > o.index)) continue;
+      const t = dzRangeTimes(m[1], m[2]);
+      if (t && t.every(x => +x.slice(0, 2) <= 24)) out.push({ index: s, end: e, p1: m[1], p2: m[2] });
+    }
+  }
+  return out.sort((x, y) => x.index - y.index);
+}
+// Alle Datumsangaben mit Position; Spannen („vom 28.10. bis 30.10.“, „Montag bis Mittwoch“) ergeben jeden Tag einzeln
+const DZ_DATE_PAT = `\\d{1,2}\\.\\s?\\d{1,2}\\.(?:\\s?\\d{4}|\\s?\\d{2}(?![:.\\d]))?|\\d{1,2}\\.?\\s+(?:${DZ_MONTHS.join('|')}|maerz)(?:\\s+\\d{4})?`;
+function dzDatesAll(text) {
+  const out = [], free = (s, e) => !out.some(o => s < o.end && e > o.index);
+  const add = (re, fn) => { let m; while ((m = re.exec(text))) { const s = m.index, e = s + m[0].length; if (!free(s, e)) continue; const dates = fn(m); if (dates?.length) out.push({ index: s, end: e, dates }); } };
+  const days = (a, b) => { const r = []; let t = parseDT(a); const end = parseDT(b); for (let i = 0; t <= end && i < 31; i++, t = addDays(t, 1)) r.push(dateStr(t)); return r; };
+  const day = s => { const d = dzDate(s).date; return d && /^\d{4}-(0[1-9]|1[0-2])-(0[1-9]|[12]\d|3[01])$/.test(d) ? d : null; }; // „15.00.“ ist keine Datumsangabe
+  // 1) Spannen: „vom 28.10. bis 30.10.“, „vom 28. bis 30.10.“, „von Montag bis Mittwoch“
+  add(new RegExp(`\\b(?:vom|von|ab)?\\s*(${DZ_DATE_PAT})\\s*(?:bis(?:\\s+(?:zum|einschließlich))?|–|-)\\s*(${DZ_DATE_PAT})`, 'gi'), m => { const a = day(m[1]), b = day(m[2]); return a && b && b >= a ? days(a, b) : null; });
+  add(new RegExp(`\\b(?:vom|von)?\\s*(\\d{1,2})\\.\\s*(?:bis(?:\\s+zum)?|–|-)\\s*(${DZ_DATE_PAT})`, 'gi'), m => { const b = day(m[2]); if (!b) return null; const a = b.slice(0, 8) + pad(+m[1]); return a <= b ? days(a, b) : null; });
+  add(new RegExp(`\\b(?:von|vom)?\\s*(${DZ_WEEKDAYS.join('|')})\\s+bis\\s+(${DZ_WEEKDAYS.join('|')})\\b`, 'gi'), m => {
+    const a = day(m[1]); if (!a) return null; const n = (DZ_WEEKDAYS.indexOf(m[2].toLowerCase()) - DZ_WEEKDAYS.indexOf(m[1].toLowerCase()) + 7) % 7;
+    return days(a, dateStr(addDays(parseDT(a), n)));
+  });
+  // 2) einzelne Tage
+  add(/\b(heute|gestern|vorgestern)\b/gi, m => [day(m[0])]);
+  add(new RegExp(`\\b(${DZ_WEEKDAYS.join('|')})\\b`, 'gi'), m => [day(m[0])]);
+  add(new RegExp(DZ_DATE_PAT, 'gi'), m => [day(m[0])]);
+  return out.sort((x, y) => x.index - y.index);
+}
+function dzBatch(text) {
+  const D = dzDatesAll(text);
+  const R = dzRanges(text, D);
+  if (!R.length) return null;
+  // nur ein Eintrag (eine Zeitspanne, ein Tag) → normale Einzelauswertung
+  if (R.length < 2 && !D.some(d => d.dates.length > 1)) return null;
+  // Textstücke zwischen den Zeitspannen (ohne Datumsangaben)
+  const strip = (s, from) => { let t = s; D.filter(d => d.index >= from && d.end <= from + s.length).sort((a, b) => b.index - a.index).forEach(d => { t = t.slice(0, d.index - from) + ' ' + t.slice(d.end - from); }); return t; };
+  const P = [];
+  for (let i = 0; i <= R.length; i++) { const from = i ? R[i - 1].end : 0, to = i < R.length ? R[i].index : text.length; P.push(strip(text.slice(from, to), from)); }
+  // Steht das Projekt hinter oder vor der Zeitspanne?
+  const hits = idx => idx.filter(i => dzProjects(P[i]).project).length;
+  const after = R.map((_, i) => i + 1), before = R.map((_, i) => i);
+  const ha = hits(after), hb = hits(before);
+  const useAfter = ha > hb || (ha === hb && !!dzProjects(P[R.length]).project);
+  // Text je Eintrag: Ein Stück zwischen zwei Zeitspannen wird am letzten Satzzeichen bzw. „und“ geteilt –
+  // davor gehört es zum vorigen Eintrag („… von 8 bis 12 Planung,“), danach zum nächsten („NRW Bank von 13 …“).
+  // Ohne solche Trennstelle entscheidet, ob das Projekt meist vor oder hinter der Uhrzeit genannt wird.
+  const own = R.map(() => ['', '']); // [davor, dahinter]
+  own[0][0] = P[0]; own[R.length - 1][1] = P[R.length];
+  for (let i = 1; i < R.length; i++) {
+    const s = P[i], seps = [...s.matchAll(/[.;,:]|\b(?:und|dann|danach|anschließend|anschliessend)\b/gi)], cut = seps.pop();
+    if (cut) { own[i - 1][1] = s.slice(0, cut.index); own[i][0] = s.slice(cut.index + cut[0].length); }
+    else if (useAfter) own[i - 1][1] = s; else own[i][0] = s;
+  }
+  // Tätigkeit ganz am Anfang ohne Projekt („Planung: vom 28. bis 30.10. …“) gilt für alle Einträge ohne eigene
+  const lead = dzProjects(P[0]).project ? [] : dzTags(P[0]);
+  const out = [];
+  R.forEach((rg, i) => {
+    const seg = own[i][0] + ' ' + own[i][1];
+    const times = dzRangeTimes(rg.p1, rg.p2);
+    // Datum: das zuletzt davor genannte, sonst das erste überhaupt, sonst heute; Spannen → jeder Tag
+    const dItem = D.filter(d => d.index < rg.index).pop() || D[0];
+    const base = parseDictation(`${seg} von ${times?.[0] || ''} bis ${times?.[1] || ''}`);
+    if (!base.tagIds.length && lead.length) base.tagIds = [...lead];
+    for (const date of dItem?.dates || [todayStr()]) {
+      const r = { ...base, tagIds: [...base.tagIds], date, assumed: dItem ? [] : ['Datum (heute)'] };
+      if (times) [r.start, r.end] = times;
+      out.push(r);
+    }
+  });
+  return out.length > 1 ? out : null;
+}
+
 function parseDictation(text) {
   let rest = ' ' + text + ' ';
   const r = { date: null, start: null, end: null, projectId: null, candidates: [], tagIds: [], comment: '', assumed: [] };
   // 1) Uhrzeiten
   let m = rest.match(DZ_BETWEEN_RE) || rest.match(DZ_RANGE_RE); // „zwischen 14 und 15 Uhr“, „von 9 bis 12“, „9–12“
   if (m) {
-    let a = dzTime(m[1].replace(/^(von|ab|um)\s+/i, '')), b = dzTime(m[2]);
-    if (a && b) {
-      if (a[0] >= 1 && a[0] <= 6) a[0] += 12;                              // „2 bis 4“ → nachmittags
-      if (b[0] * 60 + b[1] <= a[0] * 60 + a[1] && b[0] + 12 < 24 && (b[0] + 12) * 60 + b[1] > a[0] * 60 + a[1]) b[0] += 12; // „9 bis 2“ → 14 Uhr
-      r.start = dzHHMM(a); r.end = dzHHMM(b);
-    }
+    const t = dzRangeTimes(m[1], m[2]);
+    if (t) [r.start, r.end] = t;
     rest = rest.replace(m[0], ' ');
     // eine zusätzlich gesagte Dauer („eine Stunde“) steckt schon in Beginn/Ende → nicht in den Kommentar
     rest = rest.replace(new RegExp(DZ_DUR_RE.source, 'gi'), ' ');
@@ -201,12 +292,20 @@ function parseDictation(text) {
   // 4) Tags – das erkannte Tätigkeitswort gehört nicht mehr in den Kommentar
   r.tagIds = dzTags(text);
   const tagW = S.tags.filter(t => r.tagIds.includes(t.id)).flatMap(t => dzNorm(t.name).split(' ').filter(w => w.length >= 4));
-  if (tagW.length) rest = rest.split(/(\s+)/).map(tok => isHit(tok, tagW, (n, tw) => dzTagWord(n, tw)) ? ' ' : tok).join('');
+  const tagTok = []; // entfernte Tätigkeitswörter (für „Besprechung mit dem Bauherrn“)
+  if (tagW.length) rest = rest.split(/(\s+)/).map(tok => { if (isHit(tok, tagW, (n, tw) => dzTagWord(n, tw))) { tagTok.push(tok.replace(/[,.;:]+$/, '')); return ' '; } return tok; }).join('');
   // 5) Kommentar = was übrig bleibt, ohne Satzzeichen-Reste und Füllwörter am Anfang/Ende
-  const FILL = /^(auf|beim|bei|für|fur|im|in|am|um|ab|von|bis|und|zwischen|uhr|ein|eine|einer|stunde|stunden|minuten|projekt|das|dem|den|der|die|mit|zum|zur|heute)$/i;
+  const FILL = /^(auf|beim|bei|für|fur|im|in|am|um|ab|von|bis|und|zwischen|uhr|ein|eine|einer|stunde|stunden|minuten|projekt|projekte|das|dem|den|der|die|mit|zum|zur|heute|dann|danach|noch|außerdem|ausserdem|anschließend|anschliessend|sowie|jeweils|auch|täglich|taglich)$/i;
   let words = rest.replace(/\b(für das projekt|für projekt|beim projekt|auf dem projekt|auf projekt)\b/gi, ' ')
+    .replace(/(^|\s)(ich|wir|habe|hab|haben|hat|gearbeitet|gemacht)(?=\s|[,.;:]|$)/gi, ' ') // Erzählform („habe ich … gearbeitet“)
     .replace(/[,.;:–]+/g, ' ').replace(/\s+-\s+/g, ' ').split(/\s+/).filter(Boolean);
-  while (words.length && FILL.test(words[0])) words.shift();
+  // „Kanzler-UKD-Projekt“, „Bauprojekt“: bei erkanntem Projekt nur noch ein Füllwort
+  if (r.projectId) words = words.filter(w => !/^[\wäöüÄÖÜß-]*projekt(?:e|en|es|s)?$/i.test(w));
+  // Füllwörter vorn weg – beginnt der Rest dann mit „mit …“ („Besprechung mit dem Bauherrn“), bleibt das Tätigkeitswort davor stehen
+  while (words.length) {
+    if (tagTok.length && words.length > 1 && /^(mit|zur|zum|über|ueber|wegen)$/i.test(words[0])) { words.unshift(tagTok[tagTok.length - 1]); break; }
+    if (FILL.test(words[0])) words.shift(); else break;
+  }
   while (words.length && FILL.test(words[words.length - 1])) words.pop();
   r.comment = words.join(' ').trim();
   if (r.comment) r.comment = r.comment[0].toUpperCase() + r.comment.slice(1);
@@ -277,7 +376,7 @@ function dzAzureSession({ onText, onState, onEnd }) {
   };
   // Automatisch beenden: 2,5 s Stille nach dem Sprechen, 10 s ohne Sprache am Anfang, höchstens 60 s
   const armIdle = ms => { clearTimeout(idleTimer); idleTimer = setTimeout(() => finish(), ms); };
-  stopTimer = setTimeout(() => finish(), 60000);
+  stopTimer = setTimeout(() => finish(), 180000); // höchstens 3 Minuten (Stapeleingabe)
   (async () => {
     try {
       onState('start');
@@ -299,7 +398,7 @@ function dzAzureSession({ onText, onState, onEnd }) {
       rec.recognizing = (s, e) => { onText((finalText + ' ' + e.result.text).trim()); armIdle(3500); };
       rec.recognized = (s, e) => {
         if (e.result.reason === SDK.ResultReason.RecognizedSpeech && e.result.text) { finalText = (finalText + ' ' + e.result.text).trim(); onText(finalText); }
-        armIdle(2500);
+        armIdle(3500); // bei längeren Aufzählungen kurze Denkpausen zulassen
       };
       rec.canceled = (s, e) => { if (e.reason === SDK.CancellationReason.Error) finish(new Error(e.errorDetails || 'Sprachdienst nicht erreichbar')); };
       // Mikrofon → 16 kHz, 16 Bit, mono
@@ -356,37 +455,55 @@ function openDictate() {
       listening = s === 'listening' || s === 'start';
       mic.classList.toggle('on', s === 'listening'); mic.classList.toggle('wait', s === 'start');
       st.innerHTML = s === 'start' ? 'Mikrofon wird gestartet …'
-        : s === 'listening' ? '<b>Ich höre zu …</b> Projekt, Tag und Uhrzeit sagen. Zum Beenden tippen oder kurz schweigen.'
+        : s === 'listening' ? '<b>Ich höre zu …</b> Projekt, Tag und Uhrzeit sagen – gern auch mehrere hintereinander. Zum Beenden tippen oder kurz schweigen.'
         : s === 'kbd' ? `<b>So diktierst du hier:</b> ${dzOsHint()}`
         : 'Zum Diktieren auf das <b>Mikrofon</b> tippen. Text lässt sich unten auch korrigieren.';
     };
-    const draw = () => {
-      if (!ta.value.trim()) { out.innerHTML = ''; res = null; saveBtn.disabled = true; return; }
-      res = parseDictation(ta.value);
+    // Ein oder mehrere erkannte Einträge (Stapeleingabe) als Karten zur Kontrolle
+    const needProj = () => visibleProjects().some(p => !p.archived);
+    const cardHTML = (r, i, n) => {
       const projOpts = visibleProjects().filter(p => !p.archived).sort(byName);
-      out.innerHTML = `<div class="dz-card">
-        <div class="dz-head">Erkannt – bitte prüfen</div>
-        <label class="field"><span>Projekt ${res.projectId ? '<span class="dz-ok">✓ erkannt</span>' : '<span class="dz-miss">bitte wählen</span>'}</span>
-          <select id="dz-proj"><option value="">– Projekt wählen –</option>${projOpts.map(p => `<option value="${p.id}" ${p.id === res.projectId ? 'selected' : ''}>${esc(p.name)}</option>`).join('')}</select></label>
-        ${!res.projectId && res.candidates.length ? `<div class="dz-cands">Meinst du: ${res.candidates.map(p => `<button type="button" class="chip dz-cand" data-pid="${p.id}">${esc(p.name)}</button>`).join(' ')}</div>` : ''}
+      return `<div class="dz-card" data-i="${i}">
+        <div class="dz-head">${n > 1 ? `Eintrag ${i + 1} von ${n}` : 'Erkannt – bitte prüfen'}${n > 1 ? `<button type="button" class="icon-btn dz-del" title="Diesen Eintrag nicht speichern">${ic('x')}</button>` : ''}</div>
+        <label class="field"><span>Projekt ${r.projectId ? '<span class="dz-ok">✓ erkannt</span>' : '<span class="dz-miss">bitte wählen</span>'}</span>
+          <select class="dz-proj"><option value="">– Projekt wählen –</option>${projOpts.map(p => `<option value="${p.id}" ${p.id === r.projectId ? 'selected' : ''}>${esc(p.name)}${client(p.clientId) ? ' · ' + esc(client(p.clientId).name) : ''}</option>`).join('')}</select></label>
+        ${!r.projectId && r.candidates.length ? `<div class="dz-cands">Meinst du: ${r.candidates.map(p => `<button type="button" class="chip dz-cand" data-pid="${p.id}">${esc(p.name)}</button>`).join(' ')}</div>` : ''}
         <div class="row3">
-          <label class="field"><span>Datum</span><input type="date" id="dz-date" value="${res.date || ''}"></label>
-          <div class="field"><span>Beginn ${res.assumed.includes('Beginn') ? '<span class="dz-miss">angenommen</span>' : ''}</span>${timeSelHTML('dz-start', res.start || '')}</div>
-          <div class="field"><span>Ende</span>${timeSelHTML('dz-end', res.end || '')}</div>
+          <label class="field"><span>Datum</span><input type="date" class="dz-date" value="${r.date || ''}"></label>
+          <div class="field"><span>Beginn ${r.assumed.includes('Beginn') ? '<span class="dz-miss">angenommen</span>' : ''}</span>${timeSelHTML('dz-start-' + i, r.start || '')}</div>
+          <div class="field"><span>Ende</span>${timeSelHTML('dz-end-' + i, r.end || '')}</div>
         </div>
-        <div class="field"><span>Tags</span><div class="dz-tags">${S.tags.length ? [...S.tags].sort(byName).map(t => `<button type="button" class="chip dz-tag ${res.tagIds.includes(t.id) ? 'on' : ''}" data-tid="${t.id}">${esc(t.name)}</button>`).join(' ') : '<span class="muted">keine Tags angelegt</span>'}</div></div>
-        <label class="field"><span>Kommentar</span><input id="dz-comment" value="${esc(res.comment)}"></label>
-        <div class="dz-sum" id="dz-sum"></div>
+        <div class="field"><span>Tags</span><div class="dz-tags">${S.tags.length ? [...S.tags].sort(byName).map(t => `<button type="button" class="chip dz-tag ${r.tagIds.includes(t.id) ? 'on' : ''}" data-tid="${t.id}">${esc(t.name)}</button>`).join(' ') : '<span class="muted">keine Tags angelegt</span>'}</div></div>
+        <label class="field"><span>Kommentar</span><input class="dz-comment" value="${esc(r.comment)}"></label>
+        <div class="dz-sum"></div>
       </div>`;
-      const sum = () => {
-        const [s, e] = rangeFrom($('#dz-date', out).value, $('#dz-start', out).value, $('#dz-end', out).value);
-        const pid = $('#dz-proj', out).value;
-        $('#dz-sum', out).innerHTML = s != null ? `Dauer: <b>${fmtClock(e - s)}</b>` : '<span class="dz-miss">Beginn und Ende fehlen – bitte ergänzen oder z. B. „von 9 bis 12“ sagen.</span>';
-        saveBtn.disabled = s == null || (!pid && visibleProjects().some(p => !p.archived));
-      };
+    };
+    const readCard = c => {
+      const i = c.dataset.i, date = $('.dz-date', c).value, [s, e] = rangeFrom(date, $('#dz-start-' + i, c).value, $('#dz-end-' + i, c).value);
+      return { s, e, pid: $('.dz-proj', c).value || null, tagIds: [...c.querySelectorAll('.dz-tag.on')].map(b => b.dataset.tid), comment: $('.dz-comment', c).value.trim() };
+    };
+    const sum = () => {
+      const cards = [...out.querySelectorAll('.dz-card')];
+      let ok = cards.length > 0, total = 0;
+      cards.forEach(c => {
+        const v = readCard(c), good = v.s != null && (v.pid || !needProj());
+        if (v.s != null) total += v.e - v.s;
+        ok = ok && good;
+        $('.dz-sum', c).innerHTML = v.s == null ? '<span class="dz-miss">Beginn und Ende fehlen – bitte ergänzen.</span>'
+          : `Dauer: <b>${fmtClock(v.e - v.s)}</b>${good ? '' : ' · <span class="dz-miss">Projekt wählen</span>'}`;
+      });
+      saveBtn.disabled = !ok;
+      saveBtn.textContent = cards.length > 1 ? `Alle ${cards.length} speichern (${fmtClock(total)})` : 'Speichern';
+    };
+    const draw = () => {
+      if (!ta.value.trim()) { out.innerHTML = ''; res = null; saveBtn.disabled = true; saveBtn.textContent = 'Speichern'; return; }
+      res = dzBatch(ta.value) || [parseDictation(ta.value)];
+      out.innerHTML = (res.length > 1 ? `<div class="dz-batch-head">${ic('list')} <b>${res.length} Einträge erkannt</b> – bitte prüfen, dann alle zusammen speichern.</div>` : '')
+        + res.map((r, i) => cardHTML(r, i, res.length)).join('');
       out.querySelectorAll('input, select').forEach(i => i.addEventListener('input', sum));
-      out.querySelectorAll('.dz-cand').forEach(b => b.addEventListener('click', () => { $('#dz-proj', out).value = b.dataset.pid; sum(); }));
+      out.querySelectorAll('.dz-cand').forEach(b => b.addEventListener('click', () => { $('.dz-proj', b.closest('.dz-card')).value = b.dataset.pid; sum(); }));
       out.querySelectorAll('.dz-tag').forEach(b => b.addEventListener('click', () => b.classList.toggle('on')));
+      out.querySelectorAll('.dz-del').forEach(b => b.addEventListener('click', () => { b.closest('.dz-card').remove(); sum(); }));
       sum();
     };
     let deb;
@@ -416,13 +533,13 @@ function openDictate() {
     mic.addEventListener('click', () => { if (session) session.stop(); else start(); });
     UI.onModalClose = () => session?.abort(); // Fenster zu (auch per Klick daneben) → Mikrofon aus
     saveBtn.addEventListener('click', () => {
-      const date = $('#dz-date', out).value, [s, e] = rangeFrom(date, $('#dz-start', out).value, $('#dz-end', out).value);
-      if (s == null) return;
-      const pid = $('#dz-proj', out).value || null, p = proj(pid);
-      const tagIds = [...out.querySelectorAll('.dz-tag.on')].map(b => b.dataset.tid);
-      S.entries.push({ id: uid(), description: $('#dz-comment', out).value.trim(), projectId: pid, tagIds, billable: !!p?.billable, start: s, end: e });
+      const vals = [...out.querySelectorAll('.dz-card')].map(readCard);
+      if (!vals.length || vals.some(v => v.s == null || (!v.pid && needProj()))) return sum();
+      for (const v of vals) S.entries.push({ id: uid(), description: v.comment, projectId: v.pid, tagIds: v.tagIds, billable: !!proj(v.pid)?.billable, start: v.s, end: v.e });
       save(); closeModal(); render();
-      toast(`Gespeichert: ${p ? p.name + ', ' : ''}${fmtD(s)} ${fmtTime(s)}–${fmtTime(e)}`);
+      const v = vals[0], p = proj(v.pid);
+      toast(vals.length > 1 ? `${vals.length} Einträge gespeichert (${fmtClock(vals.reduce((a, x) => a + x.e - x.s, 0))})`
+        : `Gespeichert: ${p ? p.name + ', ' : ''}${fmtD(v.s)} ${fmtTime(v.s)}–${fmtTime(v.e)}`);
     });
     setState('idle');
     start(); // sofort aufnehmen – noch innerhalb des Tipps auf den roten Knopf

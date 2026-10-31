@@ -35,6 +35,7 @@ const HELP = [
       <li>Die App zeigt das Erkannte: <b>Projekt, Datum, Beginn, Ende, Tags, Kommentar</b>. Alles lässt sich korrigieren, dann <b>Speichern</b>.</li>
     </ol>
     <p>Beim ersten Mal fragt das Gerät bzw. Teams, ob die App das Mikrofon verwenden darf – bitte <b>Erlauben</b>. Klappt die Aufnahme nicht (z. B. ohne Internet), zeigt das Fenster, wie man mit der Diktierfunktion des Geräts spricht (iPhone: Mikrofon der Tastatur, Windows: Windows-Taste + H).</p>
+    <p><b>Mehrere Einträge auf einmal (Stapeleingabe):</b> einfach hintereinander erzählen, z. B. „Am 28.10. von 8 bis 12 für Kanzler UKD und von 13 bis 18 Uhr für NRW Bank Umkleiden. Am 29.10. von 8 bis 13 Uhr Mülheim Forum.“ Auch Zeiträume gehen: „vom 28.10. bis 30.10. jeweils von 8 bis 12 für Unipa“ oder „Montag bis Mittwoch jeweils …“ – das ergibt einen Eintrag pro Tag. Die <b>Tätigkeit</b> einfach zum jeweiligen Projekt sagen („… von 8 bis 12 Kanzler UKD <i>Planung</i>, von 13 bis 18 NRW Bank <i>Begehung</i> …“); eine Tätigkeit ganz am Anfang („<i>Planung:</i> vom 28. bis 30.10. …“) gilt für alle. Die App zeigt alle Einträge zur Kontrolle; einzelne lassen sich mit ✕ herausnehmen, dann <b>Alle speichern</b>.</p>
     <p>Tipps: Den <b>Projektnamen</b> mitsprechen. Ohne Datum = heute. Erkannt werden u. a. heute, gestern, Wochentage und Daten wie „12.10.“. Nur eine Dauer („90 Minuten“)? Dann wird der Beginn angenommen – bitte prüfen.</p>`
   },
   {
