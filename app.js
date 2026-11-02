@@ -834,6 +834,7 @@ function viewReports() {
   const rows = list.slice().reverse();
   return `<div class="page">
     <div class="page-head"><h1>Berichte</h1>
+      ${canBackfill() ? `<button class="btn ghost small no-print" data-action="backfill">${ic('plus')} Stunden nachtragen</button>` : ''}
       <button class="btn ghost small no-print" data-action="rep-export">${ic('download')} Exportieren</button>
     </div>
     ${printHeadHTML(label, from, to, isTeam, users)}
@@ -1254,7 +1255,9 @@ function viewUsers() {
     : st.pending || st.pendingLists ? '<span class="muted">Änderungen werden beim nächsten Abgleich übernommen.</span>'
     : `<span class="ok-text">Rechte aktuell${st.at ? ' (Stand ' + new Date(st.at).toLocaleString('de-DE') + ')' : ''}.</span>`;
   return `<div class="page">
-    <div class="page-head"><h1>Benutzer & Rollen</h1><button class="btn primary" data-action="user-add">${ic('plus')} BENUTZER HINZUFÜGEN</button></div>
+    <div class="page-head"><h1>Benutzer & Rollen</h1>
+      ${canBackfill() ? `<button class="btn ghost" data-action="backfill">${ic('clock')} STUNDEN NACHTRAGEN</button>` : ''}
+      <button class="btn primary" data-action="user-add">${ic('plus')} BENUTZER HINZUFÜGEN</button></div>
     <div class="card section-gap"><div class="card-body perm-bar">${status}
       <button class="btn ghost small" data-action="perm-apply" ${st.running ? 'disabled' : ''}>Rechte jetzt abgleichen</button></div></div>
     <div class="card section-gap">
@@ -1295,6 +1298,62 @@ function usersTableHTML(users = [...S.roles].sort(byName)) {
 }
 function afterUsers() {
   $('#user-q')?.addEventListener('input', ev => { UI.userQ = ev.target.value; $('#user-list').innerHTML = usersTableHTML(); });
+}
+/* ---------- Stunden für einen Mitarbeiter nachtragen (nur Administratoren) ---------- */
+const canBackfill = () => !!role().admin && !!window.Cloud?.signedIn();
+function openBackfill() {
+  if (!canBackfill()) return toast('Nur Administratoren können Stunden nachtragen');
+  if (!navigator.onLine) return toast('Zum Nachtragen ist eine Internetverbindung nötig');
+  const people = S.roles.filter(u => u.active && u.id !== meId() && (u.roles.includes('ma') || u.roles.includes('pl'))).sort(byName);
+  const projects = [...S.projects].sort(byName);
+  openModal(`<h2>Stunden nachtragen</h2>
+    <p class="muted" style="margin-top:-8px">Der Eintrag erscheint beim Mitarbeiter wie ein eigener und zählt in allen Berichten.</p>
+    <label class="field"><span>Mitarbeiter</span><select id="bf-user"><option value="">– Mitarbeiter wählen –</option>${people.map(u => `<option value="${u.id}">${esc(u.name)}</option>`).join('')}</select></label>
+    <label class="field"><span>Projekt</span><select id="bf-proj"><option value="">– Projekt wählen –</option>${projects.map(p => `<option value="${p.id}">${esc(p.name)}${client(p.clientId) ? ' · ' + esc(client(p.clientId).name) : ''}${p.archived ? ' (abgeschlossen)' : ''}</option>`).join('')}</select></label>
+    <label class="field"><span>Kommentar – was wurde gemacht?</span><textarea id="bf-desc" class="ef-comment" rows="2" maxlength="4000"></textarea></label>
+    <div class="field"><span>Tags</span><div class="dz-tags">${S.tags.length ? [...S.tags].sort(byName).map(t => `<button type="button" class="chip dz-tag bf-tag" data-tid="${t.id}">${esc(t.name)}</button>`).join(' ') : '<span class="muted">keine Tags angelegt</span>'}</div></div>
+    <label class="check"><input type="checkbox" id="bf-bill"> Abrechenbar</label>
+    <div class="row3">
+      <label class="field"><span>Datum</span><input type="date" id="bf-date" value="${todayStr()}"></label>
+      <div class="field"><span>Beginn</span>${timeSelHTML('bf-start', '')}</div>
+      <div class="field"><span>Ende</span>${timeSelHTML('bf-end', '')}</div>
+    </div>
+    <div class="md-dur">Dauer: <b id="bf-dur">–</b></div>
+    <p class="form-error" id="bf-err" hidden></p>
+    <div id="bf-done" class="bf-done"></div>
+    <div class="modal-actions"><span class="grow"></span>
+      <button class="btn ghost" data-action="close-modal" id="bf-close">Abbrechen</button>
+      <button class="btn primary" id="bf-save" disabled>Eintragen</button></div>`, m => {
+    const user = $('#bf-user', m), pr = $('#bf-proj', m), date = $('#bf-date', m), save = $('#bf-save', m), err = $('#bf-err', m);
+    const times = () => rangeFrom(date.value, $('#bf-start', m).value, $('#bf-end', m).value);
+    const upd = () => {
+      const [s, e] = times();
+      $('#bf-dur', m).textContent = s != null ? fmtClock(e - s) : '–';
+      save.disabled = s == null || !user.value || !pr.value;
+    };
+    m.addEventListener('input', upd); m.addEventListener('change', upd);
+    pr.addEventListener('change', () => { $('#bf-bill', m).checked = !!proj(pr.value)?.billable; });
+    m.addEventListener('click', ev => { const b = ev.target.closest('.bf-tag'); if (b) b.classList.toggle('on'); });
+    save.addEventListener('click', async () => {
+      const [s, e] = times(), u = people.find(x => x.id === user.value), p = proj(pr.value);
+      if (s == null || !u || !p) return;
+      save.disabled = true; save.textContent = 'Wird eingetragen …'; err.hidden = true;
+      try {
+        const r = await Cloud.addEntryFor(u, { id: uid(), description: $('#bf-desc', m).value.trim(), projectId: p.id,
+          tagIds: $$('.bf-tag.on', m).map(b => b.dataset.tid), billable: $('#bf-bill', m).checked, start: s, end: e });
+        $('#bf-done', m).insertAdjacentHTML('beforeend', `<div class="${r.owned ? '' : 'warn-text'}">✓ ${esc(u.name)}: ${fmtD(s)} ${fmtTime(s)}–${fmtTime(e)}, ${esc(p.name)}${r.owned ? '' : ' – gespeichert und in Berichten sichtbar, der Mitarbeiter sieht ihn aber nicht in seiner Liste: ' + esc(r.error)}</div>`);
+        // bereit für den nächsten Eintrag: Mitarbeiter und Projekt bleiben, Beginn = letztes Ende
+        const endT = $('#bf-end', m).value;
+        $('#bf-desc', m).value = ''; $$('.bf-tag.on', m).forEach(b => b.classList.remove('on'));
+        $('#bf-start', m).closest('.field').innerHTML = `<span>Beginn</span>${timeSelHTML('bf-start', endT)}`;
+        $('#bf-end', m).closest('.field').innerHTML = `<span>Ende</span>${timeSelHTML('bf-end', '')}`;
+        $('#bf-close', m).textContent = 'Fertig';
+        if (UI.route === 'reports') render();
+      } catch (x) { err.textContent = 'Nicht gespeichert: ' + x.message; err.hidden = false; }
+      save.textContent = 'Eintragen'; upd();
+    });
+    upd();
+  });
 }
 /* ---------- Teams-App-Paket (manifest.json + 2 Symbole als ZIP) ---------- */
 const appBaseUrl = () => location.origin + location.pathname.replace(/[^/]*$/, '');
@@ -1552,6 +1611,7 @@ const ACTIONS = {
   'rep-export': el => openExportMenu(el),
   'user-seg': el => { UI.userSeg = el.dataset.seg; render(); },
   'dictate': () => openDictate(),
+  'backfill': () => openBackfill(),
   'rep-filter': el => openReportFilter(el.dataset.page || ''),
   'rep-clear': () => { Object.assign(UI.report, { userIds: [], clientIds: [], projectIds: [], tagIds: [], billOnly: false }); if (UI.report.groupBy === 'user') UI.report.groupBy = 'project'; render(); },
   'new-project': () => openProjectModal(null),

@@ -727,6 +727,29 @@ const Cloud = (() => {
     if (entries) await sp(L, { method: 'POST', merge: true, body: { __metadata: { type: 'SP.List' }, ReadSecurity: 2, WriteSecurity: 2 } });
   }
 
+  /* ---------- Stunden für einen Mitarbeiter nachtragen (nur Administratoren) ----------
+     Der Eintrag wird direkt geschrieben (nicht über den eigenen Abgleich, der nur eigene Zeiten kennt) und danach
+     dem Mitarbeiter als Ersteller übergeben: In den Zeitenlisten sieht jeder nur Einträge, die er selbst „erstellt“ hat. */
+  async function addEntryFor(user, rec) {
+    if (!myRole().admin) throw new Error('Nur Administratoren können Stunden nachtragen.');
+    ensureSync();
+    const ids = await ensureLists(), listId = targetList(rec);
+    const fields = { ...toFields('entries', rec), UserId: user.id, UserName: user.name };
+    const it = await postItem(ids, 'entries', listId, fields);
+    team.key = ''; // Berichte neu laden
+    try {
+      const claim = 'i:0#.f|membership|' + user.upn;
+      await sp('web/ensureuser', { method: 'POST', body: { logonName: claim } });
+      const res = await sp(`web/lists(guid'${listId}')/items(${it.id})/validateUpdateListItem`, { method: 'POST', body: {
+        formValues: [{ __metadata: { type: 'SP.ListItemFormUpdateValue' }, FieldName: 'Author', FieldValue: JSON.stringify([{ Key: claim }]) }],
+        bNewDocumentUpdate: true
+      } });
+      const bad = (res?.value || []).find(v => v.HasException);
+      if (bad) throw new Error(bad.ErrorMessage || 'Ersteller konnte nicht gesetzt werden');
+      return { owned: true };
+    } catch (e) { console.warn('Ersteller nicht gesetzt', e); return { owned: false, error: e.message }; } // Eintrag ist gespeichert, zählt in Berichten
+  }
+
   /* ---------- Team-Auswertung (alle sichtbaren Zeiten) ---------- */
   function teamEntries(from, to) {
     const key = from + '-' + to;
@@ -780,6 +803,7 @@ const Cloud = (() => {
     signedIn: () => enabled && !!account,
     inTeams: () => teamsMode,
     repaint: () => paint(),
+    addEntryFor,
     token: scopes => getToken(scopes), // z. B. für den Sprachdienst (Diktieren)
     config: () => ({ ...cfg }),
     account: () => account,

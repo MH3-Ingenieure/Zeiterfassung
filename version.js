@@ -5,10 +5,16 @@
    CHANGELOG.md und den Cache-Namen in sw.js mitziehen.
    Nummerierung: Hauptversion.Funktion.Korrektur (z. B. 1.9.1)
    ===================================================================== */
-const APP_VERSION = '1.14.0';
-const APP_RELEASE_DATE = '31.10.2026';
+const APP_VERSION = '1.15.0';
+const APP_RELEASE_DATE = '02.11.2026';
 
 const CHANGELOG = [
+  {
+    v: '1.15.0', date: '02.11.2026', title: 'Stunden für Mitarbeiter nachtragen', items: [
+      'Administratoren können unter Berichte oder Benutzer & Rollen mit „Stunden nachtragen“ Zeiten für einen Mitarbeiter eintragen, auch auf abgeschlossenen Projekten.',
+      'Der Eintrag gehört danach dem Mitarbeiter: Er sieht ihn in seiner Liste, kann ihn ändern, und er zählt in allen Berichten.'
+    ]
+  },
   {
     v: '1.14.0', date: '31.10.2026', title: 'Stapeleingabe per Sprache', items: [
       'Mehrere Zeiten in einem Diktat: „Am 28.10. von 8 bis 12 für Kanzler UKD und von 13 bis 18 Uhr für NRW Bank Umkleiden. Am 29.10. …“ → ein Eintrag je Zeitspanne, jeweils mit eigenem Datum und Projekt.',

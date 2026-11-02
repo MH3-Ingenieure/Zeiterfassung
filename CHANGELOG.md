@@ -1,11 +1,15 @@
 # Zeiterfassung – Änderungsprotokoll
 
-Aktuelles Release: **1.14.0** vom 31.10.2026
+Aktuelles Release: **1.15.0** vom 02.11.2026
 
 Nummerierung: *Hauptversion.Funktion.Korrektur*. Neue Funktionen erhöhen die mittlere Zahl, reine Korrekturen die letzte.
 Die gleiche Liste ist in der App unter **Einstellungen → Über diese App → Änderungsprotokoll anzeigen** zu sehen (Quelle: `version.js`).
 
 ---
+
+## 1.15.0 – 02.11.2026 – Stunden für Mitarbeiter nachtragen
+- „Stunden nachtragen“ für Administratoren (Berichte, Benutzer & Rollen); Eintrag wird direkt in die Projektliste geschrieben, danach wird der Mitarbeiter per `validateUpdateListItem` als Ersteller gesetzt.
+- Geänderte Dateien: `app.js`, `cloud.js`, `help.js`, `styles.css`, `version.js`, `sw.js`, `CHANGELOG.md`
 
 ## 1.14.0 – 31.10.2026 – Stapeleingabe per Sprache
 - Mehrere Zeitspannen in einem Diktat → mehrere Einträge (Datum gilt weiter bis zum nächsten genannten; Projekt vor oder hinter der Zeitspanne).
