@@ -144,15 +144,6 @@ const HELP = [
     <p>In der Projektliste steht „fehlt“, wenn noch kein Projektleiter zugeordnet ist.</p>`
   },
   {
-    roles: ['admin'], title: 'Stunden für einen Mitarbeiter nachtragen', body: `
-    <ol>
-      <li><b>Berichte</b> oder <b>Benutzer & Rollen</b> öffnen und auf <b>Stunden nachtragen</b> klicken.</li>
-      <li>Mitarbeiter und Projekt wählen (auch abgeschlossene Projekte), Kommentar und Tags ergänzen, Datum, Beginn und Ende einstellen.</li>
-      <li><b>Eintragen</b> klicken. Das Fenster bleibt offen: Mitarbeiter und Projekt bleiben gewählt, der nächste Beginn ist das letzte Ende. Mit <b>Fertig</b> schließen.</li>
-    </ol>
-    <p>Der Eintrag gehört danach dem Mitarbeiter: Er sieht ihn nach dem nächsten Abgleich in seiner Liste und kann ihn ändern. In den Berichten zählt er sofort (Berichte → Filter → Team). Dafür ist eine Internetverbindung nötig.</p>`
-  },
-  {
     roles: ['admin', 'pl', 'bh'], title: 'Team-Auswertung (Projektleiter, Buchhaltung, Administratoren)', body: `
     <ol>
       <li>Links auf <b>Berichte</b>.</li>
@@ -179,10 +170,20 @@ const HELP = [
     <p>Es muss immer mindestens einen Administrator geben. Wer selbst Zeiten erfasst, braucht „Mitarbeiter“ (Projektleiter können immer erfassen).</p>`
   },
   {
+    roles: ['admin'], title: 'Administration: Stunden für einen Mitarbeiter eintragen oder korrigieren', body: `
+    <ol>
+      <li>Oben rechts auf Ihren <b>Namen</b> tippen und unter <b>„Ansicht als …“</b> auf <b>Mitarbeiter</b>.</li>
+      <li>Die <b>Person</b> auswählen. Die App öffnet die normale Eingabemaske mit den Projekten und Zeiten dieser Person. Ein Band oben zeigt, für wen Sie eintragen.</li>
+      <li>Wie gewohnt eintragen, ändern, löschen oder <b>diktieren</b> – auch mehrere Einträge auf einmal. Alles wird sofort bei dieser Person gespeichert; dafür ist Internet nötig.</li>
+      <li>Mit <b>„Beenden“</b> im Band zurück zu Ihrer eigenen Ansicht.</li>
+    </ol>
+    <p>Zur Auswahl stehen die Projekte, denen die Person zugeordnet ist, auch abgeschlossene. Fehlt ein Projekt, zuerst beenden und die Person dem Team des Projekts hinzufügen. Ihre eigenen Zeiten bleiben davon unberührt.</p>`
+  },
+  {
     roles: ['admin'], title: 'Administration: Ansicht einer Rolle testen', body: `
     <ol>
       <li>Oben rechts auf Ihren <b>Namen</b> tippen.</li>
-      <li>Unter <b>„Ansicht testen als …“</b> die Rolle wählen: <b>Projektleiter</b>, <b>Mitarbeiter</b> oder <b>Buchhaltung</b>.</li>
+      <li>Unter <b>„Ansicht als …“</b> die Rolle wählen: <b>Projektleiter</b> oder <b>Buchhaltung</b>. Für die Mitarbeiter-Ansicht <b>Mitarbeiter</b> und dann <b>„Nur Ansicht testen“</b>.</li>
       <li>Die App zeigt nun Menü, Projekte, Knöpfe und Berichte so, wie diese Rolle sie sieht. Ein gelbes Band oben erinnert daran.</li>
       <li>Zurück mit <b>„Vorschau beenden“</b> im gelben Band oder im Namensmenü.</li>
     </ol>

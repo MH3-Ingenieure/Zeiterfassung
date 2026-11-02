@@ -1,11 +1,15 @@
 # Zeiterfassung – Änderungsprotokoll
 
-Aktuelles Release: **1.15.0** vom 02.11.2026
+Aktuelles Release: **1.16.0** vom 02.11.2026
 
 Nummerierung: *Hauptversion.Funktion.Korrektur*. Neue Funktionen erhöhen die mittlere Zahl, reine Korrekturen die letzte.
 Die gleiche Liste ist in der App unter **Einstellungen → Über diese App → Änderungsprotokoll anzeigen** zu sehen (Quelle: `version.js`).
 
 ---
+
+## 1.16.0 – 02.11.2026 – Als Administrator für einen Mitarbeiter eintragen
+- „Ansicht als … → Mitarbeiter“ fragt die Person ab; normale Maske inkl. Diktieren, Einträge getrennt von `S.entries` (`UI.actAs`), direkte Schreibvorgänge über `Cloud.syncEntriesFor`, neue Einträge per `validateUpdateListItem` an die Person übergeben. Fenster „Stunden nachtragen“ entfällt.
+- Geänderte Dateien: `app.js`, `cloud.js`, `dictate.js`, `help.js`, `styles.css`, `version.js`, `sw.js`, `CHANGELOG.md`
 
 ## 1.15.0 – 02.11.2026 – Stunden für Mitarbeiter nachtragen
 - „Stunden nachtragen“ für Administratoren (Berichte, Benutzer & Rollen); Eintrag wird direkt in die Projektliste geschrieben, danach wird der Mitarbeiter per `validateUpdateListItem` als Ersteller gesetzt.

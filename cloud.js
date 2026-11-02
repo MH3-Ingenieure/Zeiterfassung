@@ -727,30 +727,65 @@ const Cloud = (() => {
     if (entries) await sp(L, { method: 'POST', merge: true, body: { __metadata: { type: 'SP.List' }, ReadSecurity: 2, WriteSecurity: 2 } });
   }
 
-  /* ---------- Stunden für einen Mitarbeiter nachtragen (nur Administratoren) ----------
-     Der Eintrag wird direkt geschrieben (nicht über den eigenen Abgleich, der nur eigene Zeiten kennt) und danach
-     dem Mitarbeiter als Ersteller übergeben: In den Zeitenlisten sieht jeder nur Einträge, die er selbst „erstellt“ hat. */
-  async function addEntryFor(user, rec) {
-    if (!myRole().admin) throw new Error('Nur Administratoren können Stunden nachtragen.');
+  /* ---------- Für einen Mitarbeiter arbeiten (nur Administratoren) ----------
+     Seine Einträge liegen getrennt vom eigenen Bestand (nie in S.entries) und werden direkt geschrieben. Neue Einträge
+     werden dem Mitarbeiter als Ersteller übergeben: In den Zeitenlisten sieht jeder nur Einträge, die er selbst „erstellt“ hat. */
+  async function loadEntriesFor(user) {
+    if (!myRole().admin) throw new Error('Nur Administratoren können für andere eintragen.');
     ensureSync();
-    const ids = await ensureLists(), listId = targetList(rec);
-    const fields = { ...toFields('entries', rec), UserId: user.id, UserName: user.name };
-    const it = await postItem(ids, 'entries', listId, fields);
+    const ids = await ensureLists(), entries = [], shadow = {};
+    for (const lid of entryListIds(true)) {
+      let items;
+      try { items = await getAll(`/sites/${ids.siteId}/lists/${lid}/items?$expand=fields&$top=500&$filter=fields/UserId eq '${user.id}'`); }
+      catch (e) { if (e.status === 403 || e.status === 404) continue; throw e; }
+      for (const it of items) {
+        if (!it.fields?.AppId || shadow[it.fields.AppId]) continue;
+        const rec = fromFields('entries', it.fields);
+        if (rec.end == null) continue;
+        entries.push(rec); shadow[rec.id] = { spId: it.id, listId: lid, json: ser('entries', rec) };
+      }
+    }
+    return { entries, shadow };
+  }
+  async function handOver(user, listId, spId) {
+    const claim = 'i:0#.f|membership|' + user.upn;
+    await sp('web/ensureuser', { method: 'POST', body: { logonName: claim } });
+    const res = await sp(`web/lists(guid'${listId}')/items(${spId})/validateUpdateListItem`, { method: 'POST', body: {
+      formValues: [{ __metadata: { type: 'SP.ListItemFormUpdateValue' }, FieldName: 'Author', FieldValue: JSON.stringify([{ Key: claim }]) }],
+      bNewDocumentUpdate: true
+    } });
+    const bad = (res?.value || []).find(v => v.HasException);
+    if (bad) throw new Error(bad.ErrorMessage || 'Ersteller konnte nicht gesetzt werden');
+  }
+  // Änderungen an den Einträgen des Mitarbeiters nach SharePoint schreiben; Rückgabe: Texte zu nicht übergebenen Einträgen
+  async function syncEntriesFor(a) {
+    if (!myRole().admin) throw new Error('Nur Administratoren können für andere eintragen.');
+    const ids = await ensureLists(), warnings = [], user = { id: a.id, name: a.name, upn: a.upn };
+    const present = new Set(a.entries.map(r => r.id));
+    for (const r of a.entries) {
+      const sh = a.shadow[r.id], json = ser('entries', r), tgt = targetList(r);
+      if (sh && sh.json === json && sh.listId === tgt) continue;
+      const fields = { ...toFields('entries', r), UserId: user.id, UserName: user.name };
+      if (sh && sh.listId === tgt) {
+        await withFallback(fields, f => g(`/sites/${ids.siteId}/lists/${tgt}/items/${sh.spId}/fields`, { method: 'PATCH', body: f }));
+        a.shadow[r.id] = { ...sh, json };
+      } else {
+        const it = await postItem(ids, 'entries', tgt, fields);
+        if (sh) { try { await g(`/sites/${ids.siteId}/lists/${sh.listId}/items/${sh.spId}`, { method: 'DELETE' }); } catch (e) { if (e.status !== 404) throw e; } }
+        a.shadow[r.id] = { spId: it.id, listId: tgt, json };
+        try { await handOver(user, tgt, it.id); } catch (e) { console.warn('Ersteller nicht gesetzt', e); warnings.push(e.message); }
+      }
+    }
+    for (const id of Object.keys(a.shadow)) {
+      if (present.has(id)) continue;
+      try { await g(`/sites/${ids.siteId}/lists/${a.shadow[id].listId}/items/${a.shadow[id].spId}`, { method: 'DELETE' }); } catch (e) { if (e.status !== 404) throw e; }
+      delete a.shadow[id];
+    }
     team.key = ''; // Berichte neu laden
-    try {
-      const claim = 'i:0#.f|membership|' + user.upn;
-      await sp('web/ensureuser', { method: 'POST', body: { logonName: claim } });
-      const res = await sp(`web/lists(guid'${listId}')/items(${it.id})/validateUpdateListItem`, { method: 'POST', body: {
-        formValues: [{ __metadata: { type: 'SP.ListItemFormUpdateValue' }, FieldName: 'Author', FieldValue: JSON.stringify([{ Key: claim }]) }],
-        bNewDocumentUpdate: true
-      } });
-      const bad = (res?.value || []).find(v => v.HasException);
-      if (bad) throw new Error(bad.ErrorMessage || 'Ersteller konnte nicht gesetzt werden');
-      return { owned: true };
-    } catch (e) { console.warn('Ersteller nicht gesetzt', e); return { owned: false, error: e.message }; } // Eintrag ist gespeichert, zählt in Berichten
+    return warnings;
   }
 
-  /* ---------- Team-Auswertung (alle sichtbaren Zeiten) ---------- */
+/* ---------- Team-Auswertung (alle sichtbaren Zeiten) ---------- */
   function teamEntries(from, to) {
     const key = from + '-' + to;
     if (team.key !== key) { team = { key, status: 'loading', list: [] }; loadTeam(from, to, key); }
@@ -803,7 +838,7 @@ const Cloud = (() => {
     signedIn: () => enabled && !!account,
     inTeams: () => teamsMode,
     repaint: () => paint(),
-    addEntryFor,
+    loadEntriesFor, syncEntriesFor,
     token: scopes => getToken(scopes), // z. B. für den Sprachdienst (Diktieren)
     config: () => ({ ...cfg }),
     account: () => account,

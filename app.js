@@ -34,8 +34,12 @@ function save() {
   try { localStorage.setItem(STORE_KEY, JSON.stringify(S)); }
   catch (e) { toast('Speichern fehlgeschlagen: ' + e.message); }
   window.Cloud?.changed();
+  if (UI.actAs) actAsFlush();
 }
 const cloudOn = () => !!window.Cloud?.enabled;
+// „Für Mitarbeiter eintragen“: Dessen Einträge liegen getrennt vom eigenen Bestand; S.entries bleibt unberührt
+const entryStore = () => (UI.actAs ? UI.actAs.entries : S.entries);
+const activeTimer = () => (UI.actAs ? null : S.running);
 
 const UI = {
   route: 'tracker',
@@ -177,6 +181,7 @@ const role = () => {
   return b.admin && PREVIEW[UI.previewRole] ? { admin: false, pl: false, ma: false, bh: false, ...PREVIEW[UI.previewRole][1], preview: UI.previewRole } : b;
 };
 function setPreview(r) {
+  UI.actAs = null; UI.draft = emptyDraft();
   UI.previewRole = PREVIEW[r] ? r : null;
   try { UI.previewRole ? sessionStorage.setItem('zeiterfassung.preview', r) : sessionStorage.removeItem('zeiterfassung.preview'); } catch { }
   if (window.Cloud?.refreshTeam) Cloud.refreshTeam();
@@ -184,7 +189,58 @@ function setPreview(r) {
   location.hash = '#/projects'; render();
   toast(UI.previewRole ? `Vorschau: Ansicht als ${PREVIEW[r][0]}` : 'Vorschau beendet – wieder Administrator');
 }
+/* ---------- Als Administrator für einen Mitarbeiter eintragen (normale Maske inkl. Diktieren) ---------- */
+function openActAsPicker() {
+  if (!window.Cloud?.signedIn()) return setPreview('ma');
+  const people = S.roles.filter(u => u.active && u.id !== meId() && (u.roles.includes('ma') || u.roles.includes('pl'))).sort(byName);
+  openModal(`<h2>Ansicht als Mitarbeiter</h2>
+    <p class="muted" style="margin-top:-8px">Person wählen: Sie sehen deren Projekte und Zeiten und tragen in der normalen Maske für sie ein.</p>
+    ${people.length > 8 ? '<input type="search" id="ap-q" class="help-search" placeholder="Name suchen …" autocomplete="off">' : ''}
+    <div class="ap-list">${people.map(u => `<button class="pp-item" data-uid="${u.id}" data-n="${esc(u.name.toLowerCase())}"><span class="avatar">${esc(u.name.split(/\s+/).slice(0, 2).map(w => w[0]).join('').toUpperCase())}</span><span><b>${esc(u.name)}</b><br><span class="muted small">${esc(u.upn)}</span></span></button>`).join('') || '<p class="muted" style="padding:0 24px">Noch keine Mitarbeiter unter „Benutzer & Rollen“ eingetragen.</p>'}</div>
+    <div class="modal-actions"><button class="btn ghost" id="ap-plain">Nur Ansicht testen (ohne Person)</button><span class="grow"></span><button class="btn ghost" data-action="close-modal">Abbrechen</button></div>`, m => {
+    $('#ap-q', m)?.addEventListener('input', ev => { const t = ev.target.value.trim().toLowerCase(); $$('[data-n]', m).forEach(b => { b.hidden = t && !b.dataset.n.includes(t); }); });
+    $('#ap-plain', m).addEventListener('click', () => { closeModal(); setPreview('ma'); });
+    $('.ap-list', m).addEventListener('click', ev => { const b = ev.target.closest('[data-uid]'); if (b) { closeModal(); startActAs(people.find(u => u.id === b.dataset.uid)); } });
+  });
+}
+async function startActAs(u) {
+  if (!navigator.onLine) return toast('Dafür ist eine Internetverbindung nötig');
+  // bewusst nicht im Browser gemerkt: Nach dem Neuladen ist man wieder man selbst
+  try { sessionStorage.removeItem('zeiterfassung.preview'); } catch { }
+  UI.previewRole = 'ma'; UI.draft = emptyDraft(); UI.report.userIds = []; UI.report.groupBy = 'project';
+  const a = UI.actAs = { id: u.id, name: u.name, upn: u.upn, entries: [], shadow: {}, loading: true };
+  location.hash = '#/tracker'; render();
+  try {
+    const r = await Cloud.loadEntriesFor(u);
+    if (UI.actAs !== a) return;
+    a.entries.push(...r.entries); Object.assign(a.shadow, r.shadow); a.loading = false;
+    render(); actAsFlush(); // falls schon während des Ladens etwas eingetragen wurde
+  } catch (e) { if (UI.actAs === a) { setPreview(null); toast('Zeiten konnten nicht geladen werden: ' + e.message); } }
+}
+async function actAsFlush() {
+  const a = UI.actAs;
+  if (!a || a.loading) return;
+  if (a.busy) { a.again = true; return; }
+  a.busy = true;
+  try {
+    do {
+      a.again = false;
+      const warn = await Cloud.syncEntriesFor(a);
+      if (warn.length) toast(`Gespeichert, aber ${a.name} sieht den Eintrag noch nicht in der eigenen Liste: ${warn[0]}`);
+    } while (a.again);
+  } catch (e) {
+    toast('Nicht gespeichert: ' + e.message + ' – Stand wird neu geladen');
+    try { // Serverstand wiederherstellen, damit die Anzeige stimmt
+      const r = await Cloud.loadEntriesFor(a);
+      a.entries.length = 0; a.entries.push(...r.entries); a.shadow = r.shadow;
+      if (UI.actAs === a) render();
+    } catch { }
+  }
+  a.busy = false;
+}
 function previewBanner() {
+  if (UI.actAs) return `<div class="preview-banner actas-banner">${ic('users')} <span><b>Sie tragen für ${esc(UI.actAs.name)} ein.</b> ${UI.actAs.loading ? 'Zeiten werden geladen …' : 'Alles, was Sie hier eintragen oder ändern, wird direkt bei dieser Person gespeichert.'}</span>
+    <button class="btn small" data-action="preview-end">Beenden</button></div>`;
   const p = role().preview;
   return p ? `<div class="preview-banner">${ic('shield')} <span><b>Vorschau als ${PREVIEW[p][0]}</b> – so sieht die App für diese Rolle aus. Ihre echten Rechte bleiben erhalten.</span>
     <button class="btn small" data-action="preview-end">Vorschau beenden</button></div>` : '';
@@ -198,7 +254,7 @@ const canEditTeam = p => { const r = role(); return r.admin || (r.pl && p.leadId
 const canEditClients = () => { const r = role(); return r.admin || r.bh; };
 // Mitarbeiter und Projektleiter sehen nur Projekte, denen sie zugeordnet sind
 const canSeeAllProjects = () => { const r = role(); return !cloudOn() || r.admin || r.bh; };
-const isAssigned = p => p.leadId === meId() || (p.memberIds || []).includes(meId());
+const isAssigned = p => { const id = UI.actAs?.id || meId(); return p.leadId === id || (p.memberIds || []).includes(id); };
 const visibleProjects = () => (canSeeAllProjects() ? S.projects : S.projects.filter(isAssigned));
 const canEditTags = () => role().admin;
 const canTeam = () => { const r = role(); return !!window.Cloud?.signedIn() && (r.admin || r.pl || r.bh); };
@@ -249,7 +305,7 @@ function tagsLabel(ids) {
 // Eingabeformular: 1. Projekt, 2. Kommentar (umrandet), 3. Tags/€, 4. Datum, Beginn, Ende → HINZUFÜGEN.
 // Einen Timer gibt es nicht mehr (nur ein noch laufender alter Timer wird zum Beenden angezeigt).
 function timerBarHTML() {
-  const r = S.running, d = r || UI.draft;
+  const r = activeTimer(), d = r || UI.draft;
   const manual = !r;
   const m = UI.manual;
   return `<div class="card entry-form ${r ? 'running' : ''}">
@@ -281,8 +337,8 @@ function timerBarHTML() {
 }
 
 // Einträge auf abgeschlossenen Projekten sind gesperrt (nur Administratoren können noch korrigieren)
-const isLocked = e => !!proj(e?.projectId)?.archived && !role().admin;
-const entryLocked = target => target !== 'timer' && target !== 'modal' && isLocked(S.entries.find(x => x.id === target));
+const isLocked = e => !!proj(e?.projectId)?.archived && !role().admin && !UI.actAs;
+const entryLocked = target => target !== 'timer' && target !== 'modal' && isLocked(entryStore().find(x => x.id === target));
 function lockedToast() { toast('Das Projekt ist abgeschlossen – Einträge können nicht mehr geändert werden.'); }
 
 function entryRowHTML(e) {
@@ -308,7 +364,8 @@ function entryRowHTML(e) {
 }
 
 function entriesHTML() {
-  if (!S.entries.length) {
+  if (UI.actAs?.loading && !entryStore().length) return `<div class="card empty"><p>Zeiten von ${esc(UI.actAs.name)} werden geladen …</p></div>`;
+  if (!entryStore().length) {
     return `<div class="card empty">${ic('clock').replace('class="ic"', 'class="ic big"')}
       <h3>Noch keine Zeiten erfasst</h3>
       <p>Oben Projekt wählen, Kommentar schreiben, Beginn und Ende eintragen und auf HINZUFÜGEN tippen.</p>
@@ -316,7 +373,7 @@ function entriesHTML() {
   }
   const thisWeek = startOfWeek(Date.now());
   const cutoff = addDays(thisWeek, -7 * (UI.weeksShown - 1));
-  const list = S.entries.filter(e => e.start >= cutoff).sort((a, b) => b.start - a.start);
+  const list = entryStore().filter(e => e.start >= cutoff).sort((a, b) => b.start - a.start);
   const weeks = new Map();
   for (const e of list) {
     const wk = startOfWeek(e.start), dk = startOfDay(e.start);
@@ -334,7 +391,7 @@ function entriesHTML() {
     }
   }
   if (!list.length) html += `<div class="card empty"><p>Keine Einträge in den letzten ${UI.weeksShown} Wochen.</p></div>`;
-  if (S.entries.some(e => e.start < cutoff)) html += `<button class="btn ghost load-more" data-action="load-more">Ältere Einträge laden</button>`;
+  if (entryStore().some(e => e.start < cutoff)) html += `<button class="btn ghost load-more" data-action="load-more">Ältere Einträge laden</button>`;
   return html;
 }
 
@@ -343,23 +400,23 @@ function viewTracker() { return `<div class="page">${timerBarHTML()}${entriesHTM
 function afterTracker() {
   const inp = $('#tb-desc');
   inp.addEventListener('input', () => {
-    (S.running || UI.draft).description = inp.value;
-    if (S.running) save();
+    (activeTimer() || UI.draft).description = inp.value;
+    if (activeTimer()) save();
   });
   inp.addEventListener('change', () => {
     // Wie Clockify: bekannte Beschreibung übernimmt Projekt/Tags des letzten passenden Eintrags
-    const d = S.running || UI.draft;
+    const d = activeTimer() || UI.draft;
     if (d.projectId || !inp.value) return;
-    const prev = S.entries.filter(e => e.description === inp.value).sort((a, b) => b.start - a.start)[0];
+    const prev = entryStore().filter(e => e.description === inp.value).sort((a, b) => b.start - a.start)[0];
     if (prev) { Object.assign(d, { projectId: prev.projectId, tagIds: [...prev.tagIds], billable: prev.billable }); save(); render(); }
   });
   inp.addEventListener('keydown', ev => { // Enter = neue Zeile, Strg+Enter = hinzufügen/starten
     if (ev.key !== 'Enter' || !(ev.ctrlKey || ev.metaKey)) return;
     ev.preventDefault();
-    if (S.running) inp.blur();
+    if (activeTimer()) inp.blur();
     else addManual();
   });
-  if (!S.running) {
+  if (!activeTimer()) {
     const upd = () => {
       UI.manual = { start: $('#m-start').value, end: $('#m-end').value, date: $('#m-date').value };
       const [s, e] = manualTimes();
@@ -400,32 +457,32 @@ function addManual() {
   if (s == null) return toast('Bitte Beginn, Ende und Datum angeben');
   const d = UI.draft;
   if (!d.projectId && visibleProjects().some(p => !p.archived) && !confirm('Kein Projekt gewählt. Eintrag trotzdem ohne Projekt speichern?')) return;
-  S.entries.push({ id: uid(), description: d.description.trim(), projectId: d.projectId, tagIds: [...d.tagIds], billable: d.billable, start: s, end: e });
+  entryStore().push({ id: uid(), description: d.description.trim(), projectId: d.projectId, tagIds: [...d.tagIds], billable: d.billable, start: s, end: e });
   // Projekt bleibt für den nächsten Eintrag gewählt; Kommentar, Tags und Ende werden geleert
   UI.draft = { ...emptyDraft(), projectId: d.projectId, billable: d.billable };
   UI.manual = { date: UI.manual.date, start: UI.manual.end, end: '' };
   save(); render(); toast('Eintrag hinzugefügt');
 }
 function deleteEntry(id) {
-  const i = S.entries.findIndex(e => e.id === id);
+  const i = entryStore().findIndex(e => e.id === id);
   if (i < 0) return;
-  const [removed] = S.entries.splice(i, 1);
+  const [removed] = entryStore().splice(i, 1);
   save(); render();
-  toast('Eintrag gelöscht', 'Rückgängig', () => { S.entries.push(removed); save(); render(); });
+  toast('Eintrag gelöscht', 'Rückgängig', () => { entryStore().push(removed); save(); render(); });
 }
 
 /* ---------- Ziele für Picker (Timer, Eintrag, Modal) ---------- */
 function targetObj(t) {
-  if (t === 'timer') return S.running || UI.draft;
+  if (t === 'timer') return activeTimer() || UI.draft;
   if (t === 'modal') return UI.modalDraft;
-  return S.entries.find(e => e.id === t);
+  return entryStore().find(e => e.id === t);
 }
 function applyTarget(t, fn) {
   const o = targetObj(t);
   if (!o) return;
   fn(o);
   if (t === 'modal') { renderEntryModal(); return; }
-  if (t !== 'timer' || S.running) save();
+  if (t !== 'timer' || activeTimer()) save();
   render();
 }
 
@@ -469,7 +526,8 @@ function openProjectPicker(anchor, target) {
     const inp = $('.pp-search', pop), listEl = $('.pp-list', pop);
     const draw = () => {
       const q = inp.value.trim().toLowerCase();
-      const match = p => !p.archived && (!q || p.name.toLowerCase().includes(q) || (client(p.clientId)?.name || '').toLowerCase().includes(q));
+      // Administrator darf für Mitarbeiter auch auf abgeschlossene Projekte nachtragen
+      const match = p => (!p.archived || !!UI.actAs) && (!q || p.name.toLowerCase().includes(q) || (client(p.clientId)?.name || '').toLowerCase().includes(q));
       const groups = [[null, 'Ohne Kunde'], ...[...S.clients].sort(byName).map(c => [c.id, c.name])];
       let html = q ? '' : `<button class="pp-item ${!cur ? 'sel' : ''}" data-pick=""><span class="dot" style="background:${NO_COLOR}"></span>Kein Projekt</button>`;
       for (const [cid, cname] of groups) {
@@ -558,10 +616,10 @@ function openEntryMenu(anchor, id) {
       const m = ev.target.closest('[data-m]')?.dataset.m;
       if (!m) return;
       closePopover();
-      const e = S.entries.find(x => x.id === id);
+      const e = entryStore().find(x => x.id === id);
       if (!e) return;
       if (m === 'edit') openEntryModal(id);
-      if (m === 'dup') { S.entries.push({ ...e, id: uid(), tagIds: [...e.tagIds] }); save(); render(); toast('Eintrag dupliziert'); }
+      if (m === 'dup') { entryStore().push({ ...e, id: uid(), tagIds: [...e.tagIds] }); save(); render(); toast('Eintrag dupliziert'); }
       if (m === 'del') deleteEntry(id);
     });
   }, 'menu');
@@ -576,9 +634,9 @@ function openUserMenu(anchor) {
       <div class="um-who"><b>${esc(name)}</b><span class="muted">${esc(acc?.username || (cloud ? 'Nicht angemeldet' : 'Nur auf diesem Gerät'))}</span></div></div>
     <button class="pp-item" data-m="profile">${ic('cog')} Profil & Einstellungen</button>
     <button class="pp-item" data-m="help">${ic('help')} Hilfe</button>
-    ${baseRole().admin ? `<div class="pp-group">Ansicht testen als …</div>
+    ${baseRole().admin ? `<div class="pp-group">Ansicht als …</div>
       ${Object.entries(PREVIEW).map(([k, [t]]) => `<button class="pp-item ${UI.previewRole === k ? 'sel' : ''}" data-m="pv-${k}">${ic('shield')} ${t}</button>`).join('')}
-      ${UI.previewRole ? `<button class="pp-item" data-m="pv-end">${ic('x')} Vorschau beenden (Administrator)</button>` : ''}` : ''}
+      ${UI.previewRole ? `<button class="pp-item" data-m="pv-end">${ic('x')} ${UI.actAs ? 'Eintragen für ' + esc(UI.actAs.name) + ' beenden' : 'Vorschau beenden (Administrator)'}</button>` : ''}` : ''}
     ${cloud && acc ? `<button class="pp-item" data-m="sync">${ic('upload')} Jetzt synchronisieren</button>
       <button class="pp-item danger" data-m="logout">${ic('x')} Abmelden</button>` : ''}
     ${cloud && !acc ? `<button class="pp-item" data-m="login">${ic('users')} Anmelden</button>` : ''}
@@ -590,7 +648,8 @@ function openUserMenu(anchor) {
       if (m === 'profile') location.hash = '#/settings';
       if (m === 'help') location.hash = '#/help';
       if (m === 'changelog') openChangelog();
-      if (m.startsWith('pv-')) setPreview(m === 'pv-end' ? null : m.slice(3));
+      if (m === 'pv-ma') openActAsPicker(); // Mitarbeiter: erst die Person wählen
+      else if (m.startsWith('pv-')) setPreview(m === 'pv-end' ? null : m.slice(3));
       if (m === 'sync') Cloud.sync();
       if (m === 'logout') Cloud.logout();
       if (m === 'login') Cloud.login();
@@ -599,7 +658,7 @@ function openUserMenu(anchor) {
 }
 
 function openEntryModal(id) {
-  const e = S.entries.find(x => x.id === id);
+  const e = entryStore().find(x => x.id === id);
   if (!e) return;
   UI.modalDraft = { ...e, tagIds: [...e.tagIds], date: dateStr(e.start), startT: fmtTime(e.start), endT: fmtTime(e.end) };
   renderEntryModal();
@@ -636,7 +695,7 @@ function renderEntryModal() {
   });
 }
 function saveEntryModal() {
-  const d = UI.modalDraft, e = S.entries.find(x => x.id === d?.id);
+  const d = UI.modalDraft, e = entryStore().find(x => x.id === d?.id);
   if (!e) return closeModal();
   const [s, en] = rangeFrom(d.date, d.startT, d.endT);
   if (s == null) return toast('Bitte Datum, Beginn und Ende angeben');
@@ -711,7 +770,7 @@ function reportSource(from, to) {
     if (role().preview === 'pl') return { ...t, list: t.list.filter(e => e.userId === meId() || proj(e.projectId)?.leadId === meId()) };
     return t;
   }
-  return { status: 'ok', list: S.entries };
+  return { status: 'ok', list: entryStore() };
 }
 function reportEntries(from, to, src = reportSource(from, to)) {
   const R = UI.report, q = R.q.trim().toLowerCase();
@@ -834,7 +893,6 @@ function viewReports() {
   const rows = list.slice().reverse();
   return `<div class="page">
     <div class="page-head"><h1>Berichte</h1>
-      ${canBackfill() ? `<button class="btn ghost small no-print" data-action="backfill">${ic('plus')} Stunden nachtragen</button>` : ''}
       <button class="btn ghost small no-print" data-action="rep-export">${ic('download')} Exportieren</button>
     </div>
     ${printHeadHTML(label, from, to, isTeam, users)}
@@ -912,7 +970,7 @@ function filterSummary(users = reportPeople(), forPrint = false) {
   const R = UI.report, f = [], names = (ids, look, none) => ids.map(id => id === 'none' ? none : look(id)).filter(Boolean);
   const list = (title, arr) => title + ': ' + (arr.length > 2 ? arr.slice(0, 2).join(', ') + ` +${arr.length - 2}` : arr.join(', '));
   const all = role().admin || role().bh ? 'Alle Mitarbeiter' : 'Team meiner Projekte';
-  if (canTeam() || forPrint) f.push(['team', !isTeamScope(R) ? (forPrint ? 'Mitarbeiter: ' + (S.settings.userName || '–') : 'Nur ich (' + (S.settings.userName || 'eigene Zeiten') + ')') : R.userIds.includes('*') ? all
+  if (canTeam() || forPrint) f.push(['team', !isTeamScope(R) ? (forPrint ? 'Mitarbeiter: ' + (UI.actAs?.name || S.settings.userName || '–') : UI.actAs ? UI.actAs.name : 'Nur ich (' + (S.settings.userName || 'eigene Zeiten') + ')') : R.userIds.includes('*') ? all
     : list('Team', names(R.userIds, id => id === meId() ? (S.settings.userName || 'ich') : users.find(u => u[0] === id)?.[1] || S.roles.find(u => u.id === id)?.name))]);
   if (R.clientIds.length) f.push(['client', list('Kunde', names(R.clientIds, id => client(id)?.name, 'ohne Kunde'))]);
   if (R.projectIds.length) f.push(['project', list('Projekt', names(R.projectIds, id => proj(id)?.name, 'ohne Projekt'))]);
@@ -943,7 +1001,7 @@ function reportTable() {
     const p = proj(e.projectId), c = client(p?.clientId);
     return [fmtD(e.start), fmtTime(e.start), fmtTime(e.end), fmtClock(dur(e)), +(dur(e) / HOUR).toFixed(2), e.description,
       p?.name || '', c?.name || '', e.tagIds.map(tag).filter(Boolean).map(t => t.name).join(', '),
-      e.billable ? 'Ja' : 'Nein', ...(money ? [+rateOf(e).toFixed(2), +amountOf(e).toFixed(2)] : []), e.userName || S.settings.userName];
+      e.billable ? 'Ja' : 'Nein', ...(money ? [+rateOf(e).toFixed(2), +amountOf(e).toFixed(2)] : []), e.userName || UI.actAs?.name || S.settings.userName];
   });
   return { head, rows, file: 'Stundenbericht_' + label.replace(/[^\wäöüÄÖÜß.-]+/g, '_') };
 }
@@ -1116,7 +1174,7 @@ function projectTableHTML() {
   return `<div class="tbl-wrap"><table class="tbl">
     <thead><tr><th>Name</th><th class="hide-mobile">Kunde</th>${cloud ? '<th class="hide-mobile">Projektleiter</th><th class="hide-mobile">Team</th>' : ''}<th class="num">${cloud ? 'Meine Zeit' : 'Erfasst'}</th>${money ? '<th class="num hide-mobile">Stundensatz</th>' : ''}<th></th></tr></thead>
     <tbody>${list.map(p => {
-      const es = S.entries.filter(e => e.projectId === p.id), edit = canEditProject(p), team = cloud && canEditTeam(p), tn = teamNames(p);
+      const es = entryStore().filter(e => e.projectId === p.id), edit = canEditProject(p), team = cloud && canEditTeam(p), tn = teamNames(p);
       const open = canTrack() && !p.archived; // Klick auf den Namen → Zeiterfassung für dieses Projekt
       return `<tr class="${p.archived ? 'archived' : ''}">
         <td><button class="name-cell ${open ? 'name-open' : ''}" ${open ? `data-action="open-project" data-id="${p.id}" title="Zeit für dieses Projekt eintragen"` : edit ? `data-action="edit-project" data-id="${p.id}"` : ''}><span class="dot" style="background:${p.color}"></span>${esc(p.name)}${p.archived ? ` <span class="chip lock-chip">${ic('lock')} abgeschlossen</span>` : ''}${money && p.billable && p.rate == null ? ' <span class="chip warn">Stundensatz fehlt</span>' : ''}${cloud && admin && !p.listId ? ' <span class="chip">Rechte ausstehend</span>' : ''}</button></td>
@@ -1233,7 +1291,7 @@ function viewList(kind) {
       ${list.length ? `<div class="tbl-wrap"><table class="tbl">
         <thead><tr><th>Name</th><th class="num">${isC ? 'Projekte' : 'Einträge'}</th><th class="num">Erfasst</th><th></th></tr></thead>
         <tbody>${list.map(x => {
-          const es = isC ? S.entries.filter(e => proj(e.projectId)?.clientId === x.id) : S.entries.filter(e => e.tagIds.includes(x.id));
+          const es = isC ? entryStore().filter(e => proj(e.projectId)?.clientId === x.id) : entryStore().filter(e => e.tagIds.includes(x.id));
           const count = isC ? S.projects.filter(p => p.clientId === x.id).length : es.length;
           return `<tr><td><span class="name-cell">${esc(x.name)}</span></td><td class="num">${count}</td><td class="num">${fmtDur(sum(es))}</td>
             <td class="act">${edit ? `<button class="icon-btn" data-action="rename-item" data-kind="${kind}" data-id="${x.id}" title="Umbenennen">${ic('edit')}</button>
@@ -1256,7 +1314,6 @@ function viewUsers() {
     : `<span class="ok-text">Rechte aktuell${st.at ? ' (Stand ' + new Date(st.at).toLocaleString('de-DE') + ')' : ''}.</span>`;
   return `<div class="page">
     <div class="page-head"><h1>Benutzer & Rollen</h1>
-      ${canBackfill() ? `<button class="btn ghost" data-action="backfill">${ic('clock')} STUNDEN NACHTRAGEN</button>` : ''}
       <button class="btn primary" data-action="user-add">${ic('plus')} BENUTZER HINZUFÜGEN</button></div>
     <div class="card section-gap"><div class="card-body perm-bar">${status}
       <button class="btn ghost small" data-action="perm-apply" ${st.running ? 'disabled' : ''}>Rechte jetzt abgleichen</button></div></div>
@@ -1298,62 +1355,6 @@ function usersTableHTML(users = [...S.roles].sort(byName)) {
 }
 function afterUsers() {
   $('#user-q')?.addEventListener('input', ev => { UI.userQ = ev.target.value; $('#user-list').innerHTML = usersTableHTML(); });
-}
-/* ---------- Stunden für einen Mitarbeiter nachtragen (nur Administratoren) ---------- */
-const canBackfill = () => !!role().admin && !!window.Cloud?.signedIn();
-function openBackfill() {
-  if (!canBackfill()) return toast('Nur Administratoren können Stunden nachtragen');
-  if (!navigator.onLine) return toast('Zum Nachtragen ist eine Internetverbindung nötig');
-  const people = S.roles.filter(u => u.active && u.id !== meId() && (u.roles.includes('ma') || u.roles.includes('pl'))).sort(byName);
-  const projects = [...S.projects].sort(byName);
-  openModal(`<h2>Stunden nachtragen</h2>
-    <p class="muted" style="margin-top:-8px">Der Eintrag erscheint beim Mitarbeiter wie ein eigener und zählt in allen Berichten.</p>
-    <label class="field"><span>Mitarbeiter</span><select id="bf-user"><option value="">– Mitarbeiter wählen –</option>${people.map(u => `<option value="${u.id}">${esc(u.name)}</option>`).join('')}</select></label>
-    <label class="field"><span>Projekt</span><select id="bf-proj"><option value="">– Projekt wählen –</option>${projects.map(p => `<option value="${p.id}">${esc(p.name)}${client(p.clientId) ? ' · ' + esc(client(p.clientId).name) : ''}${p.archived ? ' (abgeschlossen)' : ''}</option>`).join('')}</select></label>
-    <label class="field"><span>Kommentar – was wurde gemacht?</span><textarea id="bf-desc" class="ef-comment" rows="2" maxlength="4000"></textarea></label>
-    <div class="field"><span>Tags</span><div class="dz-tags">${S.tags.length ? [...S.tags].sort(byName).map(t => `<button type="button" class="chip dz-tag bf-tag" data-tid="${t.id}">${esc(t.name)}</button>`).join(' ') : '<span class="muted">keine Tags angelegt</span>'}</div></div>
-    <label class="check"><input type="checkbox" id="bf-bill"> Abrechenbar</label>
-    <div class="row3">
-      <label class="field"><span>Datum</span><input type="date" id="bf-date" value="${todayStr()}"></label>
-      <div class="field"><span>Beginn</span>${timeSelHTML('bf-start', '')}</div>
-      <div class="field"><span>Ende</span>${timeSelHTML('bf-end', '')}</div>
-    </div>
-    <div class="md-dur">Dauer: <b id="bf-dur">–</b></div>
-    <p class="form-error" id="bf-err" hidden></p>
-    <div id="bf-done" class="bf-done"></div>
-    <div class="modal-actions"><span class="grow"></span>
-      <button class="btn ghost" data-action="close-modal" id="bf-close">Abbrechen</button>
-      <button class="btn primary" id="bf-save" disabled>Eintragen</button></div>`, m => {
-    const user = $('#bf-user', m), pr = $('#bf-proj', m), date = $('#bf-date', m), save = $('#bf-save', m), err = $('#bf-err', m);
-    const times = () => rangeFrom(date.value, $('#bf-start', m).value, $('#bf-end', m).value);
-    const upd = () => {
-      const [s, e] = times();
-      $('#bf-dur', m).textContent = s != null ? fmtClock(e - s) : '–';
-      save.disabled = s == null || !user.value || !pr.value;
-    };
-    m.addEventListener('input', upd); m.addEventListener('change', upd);
-    pr.addEventListener('change', () => { $('#bf-bill', m).checked = !!proj(pr.value)?.billable; });
-    m.addEventListener('click', ev => { const b = ev.target.closest('.bf-tag'); if (b) b.classList.toggle('on'); });
-    save.addEventListener('click', async () => {
-      const [s, e] = times(), u = people.find(x => x.id === user.value), p = proj(pr.value);
-      if (s == null || !u || !p) return;
-      save.disabled = true; save.textContent = 'Wird eingetragen …'; err.hidden = true;
-      try {
-        const r = await Cloud.addEntryFor(u, { id: uid(), description: $('#bf-desc', m).value.trim(), projectId: p.id,
-          tagIds: $$('.bf-tag.on', m).map(b => b.dataset.tid), billable: $('#bf-bill', m).checked, start: s, end: e });
-        $('#bf-done', m).insertAdjacentHTML('beforeend', `<div class="${r.owned ? '' : 'warn-text'}">✓ ${esc(u.name)}: ${fmtD(s)} ${fmtTime(s)}–${fmtTime(e)}, ${esc(p.name)}${r.owned ? '' : ' – gespeichert und in Berichten sichtbar, der Mitarbeiter sieht ihn aber nicht in seiner Liste: ' + esc(r.error)}</div>`);
-        // bereit für den nächsten Eintrag: Mitarbeiter und Projekt bleiben, Beginn = letztes Ende
-        const endT = $('#bf-end', m).value;
-        $('#bf-desc', m).value = ''; $$('.bf-tag.on', m).forEach(b => b.classList.remove('on'));
-        $('#bf-start', m).closest('.field').innerHTML = `<span>Beginn</span>${timeSelHTML('bf-start', endT)}`;
-        $('#bf-end', m).closest('.field').innerHTML = `<span>Ende</span>${timeSelHTML('bf-end', '')}`;
-        $('#bf-close', m).textContent = 'Fertig';
-        if (UI.route === 'reports') render();
-      } catch (x) { err.textContent = 'Nicht gespeichert: ' + x.message; err.hidden = false; }
-      save.textContent = 'Eintragen'; upd();
-    });
-    upd();
-  });
 }
 /* ---------- Teams-App-Paket (manifest.json + 2 Symbole als ZIP) ---------- */
 const appBaseUrl = () => location.origin + location.pathname.replace(/[^/]*$/, '');
@@ -1595,10 +1596,10 @@ const ACTIONS = {
   'discard': () => { if (confirm('Laufenden Timer verwerfen?')) { S.running = null; save(); render(); } },
   'add-manual': addManual,
   'set-mode': el => { S.settings.trackMode = el.dataset.mode; save(); render(); },
-  'continue': el => { const e = S.entries.find(x => x.id === el.dataset.id); if (isLocked(e)) return lockedToast(); if (e) { startTimer(e); window.scrollTo({ top: 0, behavior: 'smooth' }); } },
-  'edit-entry': el => (isLocked(S.entries.find(x => x.id === el.dataset.id)) ? lockedToast() : openEntryModal(el.dataset.id)),
-  'entry-menu': el => (isLocked(S.entries.find(x => x.id === el.dataset.id)) ? lockedToast() : openEntryMenu(el, el.dataset.id)),
-  'delete-entry': el => { closeModal(); if (isLocked(S.entries.find(x => x.id === el.dataset.id))) return lockedToast(); deleteEntry(el.dataset.id); },
+  'continue': el => { const e = entryStore().find(x => x.id === el.dataset.id); if (isLocked(e)) return lockedToast(); if (e) { startTimer(e); window.scrollTo({ top: 0, behavior: 'smooth' }); } },
+  'edit-entry': el => (isLocked(entryStore().find(x => x.id === el.dataset.id)) ? lockedToast() : openEntryModal(el.dataset.id)),
+  'entry-menu': el => (isLocked(entryStore().find(x => x.id === el.dataset.id)) ? lockedToast() : openEntryMenu(el, el.dataset.id)),
+  'delete-entry': el => { closeModal(); if (isLocked(entryStore().find(x => x.id === el.dataset.id))) return lockedToast(); deleteEntry(el.dataset.id); },
   'save-entry': saveEntryModal,
   'pick-project': el => (entryLocked(el.dataset.target) ? lockedToast() : openProjectPicker(el, el.dataset.target)),
   'pick-tags': el => (entryLocked(el.dataset.target) ? lockedToast() : openTagPicker(el, el.dataset.target)),
@@ -1611,7 +1612,6 @@ const ACTIONS = {
   'rep-export': el => openExportMenu(el),
   'user-seg': el => { UI.userSeg = el.dataset.seg; render(); },
   'dictate': () => openDictate(),
-  'backfill': () => openBackfill(),
   'rep-filter': el => openReportFilter(el.dataset.page || ''),
   'rep-clear': () => { Object.assign(UI.report, { userIds: [], clientIds: [], projectIds: [], tagIds: [], billOnly: false }); if (UI.report.groupBy === 'user') UI.report.groupBy = 'project'; render(); },
   'new-project': () => openProjectModal(null),
@@ -1654,11 +1654,11 @@ const ACTIONS = {
   'open-project': el => { // Projekt aus der Übersicht → Zeiterfassung mit vorgewähltem Projekt
     const p = proj(el.dataset.id);
     if (!p) return;
-    const d = S.running || UI.draft;
-    if (!S.running) { d.projectId = p.id; d.billable = !!p.billable; }
+    const d = activeTimer() || UI.draft;
+    if (!activeTimer()) { d.projectId = p.id; d.billable = !!p.billable; }
     location.hash = '#/tracker';
     setTimeout(() => { window.scrollTo(0, 0); $('#tb-desc')?.focus(); }, 50);
-    if (S.running) toast('Es läuft noch ein Timer – bitte zuerst stoppen.');
+    if (activeTimer()) toast('Es läuft noch ein Timer – bitte zuerst stoppen.');
   },
   'teams-package': () => downloadTeamsPackage(),
   'perm-apply': () => { Cloud.reconcile(); render(); },

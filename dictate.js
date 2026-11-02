@@ -271,7 +271,7 @@ function parseDictation(text) {
   if (d.date) { r.date = d.date; rest = rest.replace(d.re, ' '); } else { r.date = todayStr(); r.assumed.push('Datum (heute)'); }
   // Beginn aus letztem Eintrag des Tages übernehmen, wenn angenommen
   if (r.assumed.includes('Beginn')) {
-    const dayStart = parseDT(r.date, '00:00'), last = S.entries.filter(e => startOfDay(e.start) === dayStart).sort((x, y) => y.end - x.end)[0];
+    const dayStart = parseDT(r.date, '00:00'), last = entryStore().filter(e => startOfDay(e.start) === dayStart).sort((x, y) => y.end - x.end)[0];
     if (last) {
       const dur = parseDT(r.date, r.end) - parseDT(r.date, r.start);
       r.start = fmtTime(last.end); r.end = fmtTime(last.end + dur);
@@ -535,7 +535,7 @@ function openDictate() {
     saveBtn.addEventListener('click', () => {
       const vals = [...out.querySelectorAll('.dz-card')].map(readCard);
       if (!vals.length || vals.some(v => v.s == null || (!v.pid && needProj()))) return sum();
-      for (const v of vals) S.entries.push({ id: uid(), description: v.comment, projectId: v.pid, tagIds: v.tagIds, billable: !!proj(v.pid)?.billable, start: v.s, end: v.e });
+      for (const v of vals) entryStore().push({ id: uid(), description: v.comment, projectId: v.pid, tagIds: v.tagIds, billable: !!proj(v.pid)?.billable, start: v.s, end: v.e });
       save(); closeModal(); render();
       const v = vals[0], p = proj(v.pid);
       toast(vals.length > 1 ? `${vals.length} Einträge gespeichert (${fmtClock(vals.reduce((a, x) => a + x.e - x.s, 0))})`
