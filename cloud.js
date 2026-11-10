@@ -19,9 +19,10 @@ const Cloud = (() => {
   const spScopes = () => [`https://${new URL(cfg.siteUrl).hostname}/AllSites.FullControl`];
   const GRAPH = 'https://graph.microsoft.com/v1.0';
   const spBase = () => cfg.siteUrl.replace(/\/+$/, '');
-  const SHARED = ['roles', 'clients', 'projects', 'rates', 'tags'];
+  const SHARED = ['roles', 'clients', 'projects', 'rates', 'tags', 'reports'];
   const KINDS = [...SHARED, 'entries'];
-  const OPTIONAL = new Set(['roles', 'rates']); // für Mitarbeiter ggf. nicht sichtbar
+  // für Mitarbeiter ggf. nicht sichtbar; ZE_Berichte legt erst ein Administrator an
+  const OPTIONAL = new Set(['roles', 'rates', 'reports']);
   const ROLE_NAMES = { admin: 'Administrator', pl: 'Projektleiter', ma: 'Mitarbeiter', bh: 'Buchhaltung' };
 
   const text = (name, displayName, indexed) => ({ name, displayName, text: {}, indexed });
@@ -42,6 +43,9 @@ const Cloud = (() => {
     },
     rates: { name: 'ZE_Stundensaetze', cols: [text('AppId', 'Projekt-ID', true), num('Rate', 'Stundensatz')] },
     tags: { name: 'ZE_Tags', cols: [text('AppId', 'App-ID', true)] },
+    // gespeicherte Berichte (Filter); jeder bearbeitet nur seine eigenen, „Für alle“ sehen alle
+    reports: { name: 'ZE_Berichte', cols: [text('AppId', 'App-ID', true), text('OwnerId', 'Ersteller-ID'), text('OwnerName', 'Ersteller'), bool('Shared', 'Für alle'),
+      { name: 'Data', displayName: 'Filter', text: { allowMultipleLines: true } }] },
     entries: { name: 'ZE_Zeiteintraege', cols: ENTRY_COLS } // Sammelliste: Einträge ohne Projekt bzw. bis die Projektliste existiert
   };
   // SharePoint-Berechtigungsarten (SP.PermissionKind) für die eigenen Rechtestufen
@@ -350,16 +354,18 @@ const Cloud = (() => {
       case 'projects': return { id: r.id, name: r.name, clientId: r.clientId || null, color: r.color || '', billable: !!r.billable, archived: !!r.archived, leadId: r.leadId || null, leadName: r.leadName || '', listId: r.listId || null, memberIds: [...(r.memberIds || [])].sort() };
       case 'rates': return { id: r.id, rate: Number(r.rate) };
       case 'entries': return { id: r.id, description: r.description || '', projectId: r.projectId || null, tagIds: [...(r.tagIds || [])], billable: !!r.billable, start: sec(r.start), end: r.end == null ? null : sec(r.end) };
+      case 'reports': return { id: r.id, name: r.name || '', ownerId: r.ownerId || '', ownerName: r.ownerName || '', shared: !!r.shared, data: JSON.stringify(r.data || {}) };
       default: return { id: r.id, name: r.name };
     }
   }
-  const ser = (k, r) => JSON.stringify(canon(k, r));
+  const ser =(k, r) => JSON.stringify(canon(k, r));
   function toFields(k, r) {
     const c = canon(k, r);
     switch (k) {
       case 'roles': return { Title: c.name || c.upn, AppId: c.id, Upn: c.upn, Roles: c.roles.join(','), Active: c.active };
       case 'projects': return { Title: c.name, AppId: c.id, ClientAppId: c.clientId || '', Color: c.color, Billable: c.billable, Archived: c.archived, LeadId: c.leadId || '', LeadName: c.leadName, ListId: c.listId || '', MemberIds: c.memberIds.join(',') };
       case 'rates': return { Title: proj(c.id)?.name || c.id, AppId: c.id, Rate: c.rate };
+      case 'reports': return { Title: c.name.slice(0, 250) || '-', AppId: c.id, OwnerId: c.ownerId, OwnerName: c.ownerName, Shared: c.shared, Data: c.data };
       case 'entries': {
         const p = proj(c.projectId), cl = p && client(p.clientId), h = c.end ? (c.end - c.start) / HOUR : 0;
         return {
@@ -378,6 +384,7 @@ const Cloud = (() => {
       case 'roles': return { id: f.AppId, name: f.Title || '', upn: f.Upn || '', roles: (f.Roles || '').split(',').filter(Boolean).sort(), active: !!f.Active };
       case 'projects': return { id: f.AppId, name: f.Title || '', clientId: f.ClientAppId || null, color: f.Color || '#03a9f4', billable: !!f.Billable, archived: !!f.Archived, leadId: f.LeadId || null, leadName: f.LeadName || '', listId: f.ListId || null, memberIds: (f.MemberIds || '').split(',').filter(Boolean).sort() };
       case 'rates': return { id: f.AppId, rate: Number(f.Rate) };
+      case 'reports': { let data = {}; try { data = JSON.parse(f.Data || '{}'); } catch { } return { id: f.AppId, name: f.Title === '-' ? '' : (f.Title || ''), ownerId: f.OwnerId || '', ownerName: f.OwnerName || '', shared: !!f.Shared, data }; }
       case 'entries': return { id: f.AppId, description: f.Comment != null ? f.Comment : f.Title === '-' ? '' : (f.Title || ''), projectId: f.ProjectAppId || null, tagIds: (f.TagAppIds || '').split(',').filter(Boolean), billable: !!f.Billable, start: Date.parse(f.StartTime), end: f.EndTime ? Date.parse(f.EndTime) : null };
       default: return { id: f.AppId, name: f.Title || '' };
     }
@@ -606,8 +613,9 @@ const Cloud = (() => {
     S.projects.map(p => [p.id, p.leadId || '', p.listId || '', !!p.archived]).sort()
   ]);
   const COLS_VERSION = 2; // erhöhen, wenn Zeitenlisten neue Spalten bekommen
+  const PERM_VERSION = 2; // erhöhen, wenn neue Listen Rechte brauchen (2: ZE_Berichte)
   function maybeReconcile() {
-    const pending = S.projects.some(p => !p.listId) || S.sync.permApplied !== permSignature() || S.sync.colsV !== COLS_VERSION;
+    const pending = S.projects.some(p => !p.listId) || S.sync.permApplied !== permSignature() || S.sync.colsV !== COLS_VERSION || S.sync.permV !== PERM_VERSION;
     if (pending && !perm.running && !perm.error) reconcile();
   }
 
@@ -686,11 +694,12 @@ const Cloud = (() => {
         { id: ids.clients, assign: plan(r => (has(r, 'bh') ? RD.contribute : RD.read)) },
         { id: ids.tags, assign: plan(() => RD.read) }, // Tags pflegt nur der Administrator
         { id: ids.roles, assign: plan(() => RD.read) },
-        { id: ids.rates, assign: plan(r => (has(r, 'bh') ? RD.contribute : has(r, 'pl') ? RD.read : null)) }
+        { id: ids.rates, assign: plan(r => (has(r, 'bh') ? RD.contribute : has(r, 'pl') ? RD.read : null)) },
+        { id: ids.reports, reports: true, assign: plan(() => RD.contribute) } // alle lesen, jeder bearbeitet nur seine eigenen
       ].filter(l => l.id);
       for (const l of lists) await applyListPerms(l, owners.Id);
 
-      S.sync.permApplied = permSignature(); S.sync.permAt = Date.now(); persist();
+      S.sync.permApplied = permSignature(); S.sync.permV = PERM_VERSION; S.sync.permAt = Date.now(); persist();
     } catch (e) {
       console.error(e);
       perm.error = e.consent
@@ -702,7 +711,7 @@ const Cloud = (() => {
     }
   }
 
-  async function applyListPerms({ id, assign, entries }, ownersId) {
+  async function applyListPerms({ id, assign, entries, reports }, ownersId) {
     const L = `web/lists(guid'${id}')`;
     const info = await sp(`${L}?$select=HasUniqueRoleAssignments`);
     if (!info.HasUniqueRoleAssignments) await sp(`${L}/breakroleinheritance(copyRoleAssignments=true,clearSubscopes=true)`, { method: 'POST' });
@@ -725,6 +734,8 @@ const Cloud = (() => {
     }
     // Zeitenlisten: jeder sieht und bearbeitet nur eigene Einträge (außer Projektleitung, Buchhaltung, Besitzer)
     if (entries) await sp(L, { method: 'POST', merge: true, body: { __metadata: { type: 'SP.List' }, ReadSecurity: 2, WriteSecurity: 2 } });
+    // Berichte: alle Einträge lesen, nur eigene bearbeiten
+    if (reports) await sp(L, { method: 'POST', merge: true, body: { __metadata: { type: 'SP.List' }, ReadSecurity: 1, WriteSecurity: 2 } });
   }
 
   /* ---------- Für einen Mitarbeiter arbeiten (nur Administratoren) ----------
@@ -844,7 +855,7 @@ const Cloud = (() => {
     account: () => account,
     meId: () => S.sync?.userId || null,
     reconcile: () => { perm.error = ''; return reconcile(); },
-    permStatus: () => ({ running: perm.running, error: perm.error, at: S.sync?.permAt || 0, pendingLists: S.projects.filter(p => !p.listId).length, pending: S.sync?.permApplied !== permSignature() }),
+    permStatus: () => ({ running: perm.running, error: perm.error, at: S.sync?.permAt || 0, pendingLists: S.projects.filter(p => !p.listId).length, pending: S.sync?.permApplied !== permSignature() || S.sync?.permV !== PERM_VERSION }),
     refreshTeam: () => { team.key = ''; },
     statusClick: () => (state === 'login' ? login() : sync())
   };

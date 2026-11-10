@@ -5,10 +5,17 @@
    CHANGELOG.md und den Cache-Namen in sw.js mitziehen.
    Nummerierung: Hauptversion.Funktion.Korrektur (z. B. 1.9.1)
    ===================================================================== */
-const APP_VERSION = '1.16.0';
-const APP_RELEASE_DATE = '02.11.2026';
+const APP_VERSION = '1.17.0';
+const APP_RELEASE_DATE = '10.11.2026';
 
 const CHANGELOG = [
+  {
+    v: '1.17.0', date: '10.11.2026', title: 'Test: Zeitraum-Kalender und gespeicherte Berichte', items: [
+      'Testfunktion „Gespeicherte Berichte“ (Einstellungen → Testfunktionen): Berichte mit allen Filtern unter einem Namen speichern und mit einem Klick wieder aufrufen; auf allen Geräten gleich (SharePoint-Liste ZE_Berichte). Administratoren, Projektleitung und Buchhaltung können Berichte für alle sichtbar machen.',
+      'Testfunktion (Einstellungen → Testfunktionen → „Neuer Zeitraum-Kalender (Test)“, nur auf dem jeweiligen Gerät): Unter Berichte → Filter → „Benutzerdefiniert“ wird der Zeitraum in einem Kalender markiert – Anfang und Ende antippen oder über die Tage ziehen. Am PC zwei Monate nebeneinander.',
+      'Ohne eingeschalteten Testschalter bleibt alles wie bisher.'
+    ]
+  },
   {
     v: '1.16.0', date: '02.11.2026', title: 'Als Administrator für einen Mitarbeiter eintragen', items: [
       'Namensmenü → „Ansicht als …“ → Mitarbeiter → Person wählen: normale Eingabemaske inkl. Diktieren mit Projekten und Zeiten dieser Person.',

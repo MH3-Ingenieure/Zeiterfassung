@@ -1,11 +1,18 @@
 # Zeiterfassung – Änderungsprotokoll
 
-Aktuelles Release: **1.16.0** vom 02.11.2026
+Aktuelles Release: **1.17.0** vom 10.11.2026
 
 Nummerierung: *Hauptversion.Funktion.Korrektur*. Neue Funktionen erhöhen die mittlere Zahl, reine Korrekturen die letzte.
 Die gleiche Liste ist in der App unter **Einstellungen → Über diese App → Änderungsprotokoll anzeigen** zu sehen (Quelle: `version.js`).
 
 ---
+
+## 1.17.0 – 10.11.2026 – TEST: Zeitraum-Kalender und gespeicherte Berichte
+- Kalender (Vorschlag von Kris Johannsen, wie sevDesk): Testschalter `S.settings.betaRangeCal`; Klick Anfang/Klick Ende oder Ziehen; am PC zwei Monate.
+- Gespeicherte Berichte: Testschalter `S.settings.betaSavedReports`; neue Liste `ZE_Berichte` (neue Art `reports` im Abgleich, OPTIONAL), Rechte Lesen=alle (ReadSecurity 1), Schreiben=eigene (WriteSecurity 2); `PERM_VERSION` 2 löst den Rechteabgleich einmal neu aus.
+- Ohne Schalter unverändert; die Liste ZE_Berichte wird aber angelegt, sobald ein Administrator die Version öffnet (schadet nicht).
+- Rückweg: Schalter aus oder Sicherung `Stundenreporting_Sicherung_1.16.0` hochladen.
+- Geänderte Dateien: `app.js`, `cloud.js`, `styles.css`, `version.js`, `sw.js`, `CHANGELOG.md`
 
 ## 1.16.0 – 02.11.2026 – Als Administrator für einen Mitarbeiter eintragen
 - „Ansicht als … → Mitarbeiter“ fragt die Person ab; normale Maske inkl. Diktieren, Einträge getrennt von `S.entries` (`UI.actAs`), direkte Schreibvorgänge über `Cloud.syncEntriesFor`, neue Einträge per `validateUpdateListItem` an die Person übergeben. Fenster „Stunden nachtragen“ entfällt.
