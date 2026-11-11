@@ -60,10 +60,11 @@ const HELP = [
     roles: 'all', title: 'Berichte und Export', body: `
     <ol>
       <li>Links auf <b>Berichte</b>.</li>
-      <li>Auf <b>Filter</b> tippen. Oben den Zeitraum wählen: <b>Diese Woche, Letzte Woche, Letzte zwei Wochen, Diesen Monat, Letzten Monat, Dieses Jahr, Letztes Jahr</b> oder <b>Benutzerdefiniert</b> (Von/Bis).</li>
+      <li>Auf <b>Filter</b> tippen. Oben den Zeitraum wählen: <b>Diese Woche, Letzte Woche, Letzte zwei Wochen, Diesen Monat, Letzten Monat, Dieses Jahr, Letztes Jahr</b> oder <b>Benutzerdefiniert</b>. Dann öffnet sich ein <b>Kalender</b>: ersten Tag antippen, dann den letzten Tag antippen – die Tage dazwischen werden blau hinterlegt (am PC auch mit gedrückter Maus über die Tage ziehen). Mit den Pfeilen blättern Sie die Monate.</li>
       <li>Darunter bei Bedarf <b>Team</b>, <b>Kunde</b>, <b>Projekt</b> und <b>Tag</b> eingrenzen (mehrere ankreuzen möglich) und <b>Nur abrechenbare Zeiten</b> einschalten. Mit <b>Anwenden</b> übernehmen.</li>
       <li>Mit den Pfeilen neben dem Zeitraum blättern Sie eine Woche/einen Monat/ein Jahr vor oder zurück. Die aktiven Filter stehen als Kärtchen unter der Leiste; ein Tipp darauf öffnet den Filter.</li>
       <li>Sie sehen Summen, ein Diagramm, eine <b>Aufschlüsselung</b> (nach Projekt, Kunde, Tag, Beschreibung oder Datum) und den <b>Einzelnachweis</b>.</li>
+      <li><b>Bericht speichern:</b> Oben in der Leiste <b>„Gespeicherte Berichte“</b> auf <b>„+ Aktuellen Bericht speichern“</b> tippen und einen Namen vergeben, z. B. „Letzten Monat – alle Mitarbeiter“. Ein Tipp auf den Namen stellt Zeitraum und alle Filter wieder ein. „Letzten Monat“ bezieht sich dabei immer auf den heutigen Tag. Administratoren, Projektleitung und Buchhaltung können einen Bericht <b>für alle sichtbar</b> machen. Umbenennen, freigeben oder löschen unter <b>„Verwalten“</b>. Die Berichte stehen auf allen Geräten zur Verfügung.</li>
       <li><b>Exportieren</b> (oben rechts): <b>Als PDF speichern</b> (Druckdialog → „Als PDF speichern“, mit MH3-Firmenkopf), <b>Als CSV speichern</b> oder <b>Als Excel speichern</b> (.xlsx; Stunden und Beträge als Zahlen, mit Filterzeile).</li>
     </ol>
     <p>Mitarbeiter sehen nur ihre eigenen Zeiten und keine Beträge. Projektleiter, Buchhaltung und Administratoren haben zusätzlich die Team-Auswertung (siehe unten).</p>`

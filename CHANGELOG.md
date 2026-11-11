@@ -1,11 +1,20 @@
 # Zeiterfassung – Änderungsprotokoll
 
-Aktuelles Release: **1.17.0** vom 10.11.2026
+Aktuelles Release: **1.18.0** vom 11.11.2026
 
 Nummerierung: *Hauptversion.Funktion.Korrektur*. Neue Funktionen erhöhen die mittlere Zahl, reine Korrekturen die letzte.
 Die gleiche Liste ist in der App unter **Einstellungen → Über diese App → Änderungsprotokoll anzeigen** zu sehen (Quelle: `version.js`).
 
 ---
+
+## 1.18.0 – 11.11.2026 – Zeitraum-Kalender und gespeicherte Berichte für alle
+- Testschalter (`betaRangeCal`, `betaSavedReports`) und Karte „Testfunktionen“ entfernt; beide Funktionen immer aktiv. Hilfe ergänzt.
+- Geänderte Dateien: `app.js`, `help.js`, `styles.css`, `version.js`, `sw.js`, `CHANGELOG.md`
+
+## 1.17.1 – 11.11.2026 – TEST: Zeitraum-Kalender verbessert
+- Weiterhin nur mit Testschalter; Mouse-over-Vorschau nach dem ersten Klick, Kalender wird beim Wählen von „Benutzerdefiniert“ vollständig ins Bild gescrollt (letzte Wochen waren abgeschnitten), Zeitraum in der Berichtsleiste öffnet ihn direkt.
+- Touch: `touch-action: pan-y`, Ziehen zum Markieren nur mit Maus – Wischen blättert wieder.
+- Geänderte Dateien: `app.js`, `styles.css`, `version.js`, `sw.js`, `CHANGELOG.md`
 
 ## 1.17.0 – 10.11.2026 – TEST: Zeitraum-Kalender und gespeicherte Berichte
 - Kalender (Vorschlag von Kris Johannsen, wie sevDesk): Testschalter `S.settings.betaRangeCal`; Klick Anfang/Klick Ende oder Ziehen; am PC zwei Monate.

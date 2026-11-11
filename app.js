@@ -901,7 +901,7 @@ function viewReports() {
       <div class="rep-row">
         <button class="btn primary small rep-filter-btn" data-action="rep-filter">${ic('filter')} Filter${nF ? ` <span class="rep-badge">${nF}</span>` : ''}</button>
         ${R.range === 'custom'
-          ? `<span class="range-label">${esc(label)}</span>`
+          ? `<button class="range-label range-pick" data-action="rep-filter" data-page="cal" title="Zeitraum im Kalender ändern">${ic('clock')} ${esc(label)}</button>`
           : `<div class="range-nav"><button class="icon-btn" data-action="rep-shift" data-d="-1" aria-label="Zurück">${ic('chevL')}</button><span class="range-label">${esc(label)}</span><button class="icon-btn" data-action="rep-shift" data-d="1" aria-label="Weiter">${ic('chevR')}</button></div>`}
         ${isTeam ? '<button class="icon-btn" data-action="team-refresh" title="Daten neu laden">⟳</button>' : ''}
       </div>
@@ -1045,10 +1045,9 @@ function openExportMenu(anchor) {
 }
 
 /* ---------- Filterfenster für Berichte (wie Clockify) ---------- */
-/* ---------- TEST: Gespeicherte Berichte – nur aktiv, wenn unter Einstellungen eingeschaltet ----------
+/* ---------- Gespeicherte Berichte ----------
    Gespeichert werden die Filter (Zeitraum relativ zu heute, z. B. „Letzten Monat“, nur „Benutzerdefiniert“ mit festen Daten),
    in SharePoint (ZE_Berichte) und damit auf allen Geräten gleich. „Für alle“ sehen alle, ändern nur Ersteller/Administratoren. */
-const betaSavedReports = () => !!S.settings.betaSavedReports;
 const REP_DEFAULT = { range: 'week', offset: 0, from: '', to: '', userIds: [], clientIds: [], projectIds: [], tagIds: [], billOnly: false, groupBy: 'project', q: '' };
 const repNorm = d => { const o = { ...REP_DEFAULT, ...d }; if (o.range !== 'custom') { o.from = ''; o.to = ''; } return JSON.stringify(Object.keys(REP_DEFAULT).map(k => o[k])); };
 const repData = () => { const d = {}; for (const k of Object.keys(REP_DEFAULT)) d[k] = Array.isArray(UI.report[k]) ? [...UI.report[k]] : UI.report[k]; if (d.range !== 'custom') { delete d.from; delete d.to; } return d; };
@@ -1057,7 +1056,6 @@ const visibleReports = () => (S.reports || []).filter(r => r.ownerId === repOwne
 const canShareReports = () => { const r = role(); return !!(r.admin || r.pl || r.bh || r.local); };
 const canEditReport = r => r.ownerId === repOwner() || !!baseRole().admin;
 function savedReportsHTML() {
-  if (!betaSavedReports()) return '';
   const list = visibleReports(), cur = repNorm(repData());
   return `<div class="rep-saved"><span class="rep-saved-l">${ic('list')} Gespeicherte Berichte:</span>
     ${list.map(r => `<button class="chip rep-sv ${repNorm(r.data) === cur ? 'on' : ''}" data-action="rep-load" data-id="${r.id}" title="${r.shared ? 'Für alle sichtbar · angelegt von ' + esc(r.ownerName || '?') : 'Nur für mich'}">${r.shared ? ic('users') + ' ' : ''}${esc(r.name)}</button>`).join('') || '<span class="muted small">noch keine</span>'}
@@ -1124,15 +1122,15 @@ function openManageReports() {
   });
 }
 
-/* ---------- TEST: Zeitraum-Kalender (wie sevDesk) – nur aktiv, wenn unter Einstellungen eingeschaltet ----------
+/* ---------- Zeitraum-Kalender (wie sevDesk) ----------
    Erster Klick = Anfang, zweiter Klick = Ende; oder mit gedrückter Maus/Finger über die Tage ziehen. */
-const betaRangeCal = () => !!S.settings.betaRangeCal;
 function mountRangeCal(el, F) {
   const two = () => innerWidth >= 760;                 // am PC zwei Monate nebeneinander
   const startDay = S.settings.weekStart === 0 ? 0 : 1;
   let view = (F.from || todayStr()).slice(0, 7);       // erster angezeigter Monat „JJJJ-MM“
   let pending = false;                                 // Anfang gewählt, Ende noch offen
   let drag = null;                                     // { start, moved }
+  let hover = null;                                    // Mouse-over nach dem ersten Klick: Vorschau bis zu diesem Tag
   const monthAdd = (ym, n) => { const d = new Date(+ym.slice(0, 4), +ym.slice(5) - 1 + n, 1); return `${d.getFullYear()}-${pad(d.getMonth() + 1)}`; };
   const fmt = d => d ? d.split('-').reverse().join('.') : '…';
   const monthHTML = ym => {
@@ -1148,20 +1146,21 @@ function mountRangeCal(el, F) {
       <div class="rc-grid">${wd.map(w => `<span class="rc-wd">${w}</span>`).join('')}${cells}</div></div>`;
   };
   const paint = () => { // nur Markierungen setzen – das Gitter bleibt beim Ziehen stehen
-    const a = F.from, b = pending ? F.from : F.to;
+    let a = F.from, b = pending ? (hover || F.from) : F.to;
+    if (b < a) [a, b] = [b, a];
     el.querySelectorAll('.rc-day').forEach(c => {
       const d = c.dataset.day;
       c.classList.toggle('rc-in', !!a && !!b && d >= a && d <= b);
       c.classList.toggle('rc-start', d === a);
       c.classList.toggle('rc-end', d === b);
     });
-    $('.rc-sum', el).textContent = `${fmt(F.from)} – ${pending ? 'Ende wählen' : fmt(F.to)}`;
+    $('.rc-sum', el).textContent = pending ? `${fmt(a)} – ${hover && hover !== F.from ? fmt(b) : 'Ende wählen'}` : `${fmt(F.from)} – ${fmt(F.to)}`;
   };
   const draw = () => {
     el.innerHTML = `<div class="rc-top"><button type="button" class="icon-btn" data-rc="prev" aria-label="Monat zurück">${ic('chevL')}</button>
         <b class="rc-sum"></b><button type="button" class="icon-btn" data-rc="next" aria-label="Monat weiter">${ic('chevR')}</button></div>
       <div class="rc-months">${monthHTML(view)}${two() ? monthHTML(monthAdd(view, 1)) : ''}</div>
-      <div class="rc-foot"><span class="muted small">Anfang und Ende antippen – oder über die Tage ziehen.</span><button type="button" class="btn ghost small" data-rc="reset">Zurücksetzen</button></div>`;
+      <div class="rc-foot"><span class="muted small">${matchMedia('(pointer: coarse)').matches ? 'Anfang und Ende antippen.' : 'Anfang und Ende anklicken – oder mit gedrückter Maus über die Tage ziehen.'}</span><button type="button" class="btn ghost small" data-rc="reset">Zurücksetzen</button></div>`;
     paint();
   };
   const set = (a, b) => { [F.from, F.to] = a <= b ? [a, b] : [b, a]; };
@@ -1177,11 +1176,18 @@ function mountRangeCal(el, F) {
   el.addEventListener('pointerdown', ev => {
     const d = ev.target.closest('.rc-day')?.dataset.day;
     if (!d) return;
-    ev.preventDefault();
-    drag = { start: d, moved: false };
+    // Finger: nur antippen (Wischen blättert das Fenster); Ziehen zum Markieren nur mit der Maus
+    if (ev.pointerType === 'mouse') ev.preventDefault();
+    drag = { start: d, moved: false, touch: ev.pointerType !== 'mouse' };
   });
   el.addEventListener('pointermove', ev => {
-    if (!drag) return;
+    if (!drag) { // Mouse-over: nach dem ersten Klick den Bereich bis zur Maus vorab einfärben
+      if (!pending || ev.pointerType === 'touch') return;
+      const d = ev.target.closest?.('.rc-day')?.dataset.day;
+      if (d && d !== hover) { hover = d; paint(); }
+      return;
+    }
+    if (drag.touch) return;
     const d = dayAt(ev);
     if (!d || (d === drag.start && !drag.moved)) return;
     drag.moved = true; pending = false; set(drag.start, d); paint();
@@ -1189,7 +1195,9 @@ function mountRangeCal(el, F) {
   const up = ev => {
     if (!el.isConnected) { document.removeEventListener('pointerup', up); removeEventListener('resize', onResize); return; } // Fenster geschlossen
     if (!drag) return;
-    const d = dayAt(ev) || drag.start, was = drag; drag = null;
+    const was = drag; drag = null;
+    const d = was.touch ? was.start : (dayAt(ev) || was.start);
+    hover = null;
     if (was.moved) { pending = false; set(was.start, d); }
     else if (pending) { pending = false; set(F.from, d); }       // zweiter Klick = Ende
     else { F.from = F.to = d; pending = true; }                   // erster Klick = Anfang
@@ -1197,6 +1205,7 @@ function mountRangeCal(el, F) {
   };
   document.addEventListener('pointerup', up);
   el.addEventListener('pointercancel', () => { drag = null; });
+  el.addEventListener('pointerleave', () => { if (hover) { hover = null; paint(); } });
   let wasTwo = two();
   const onResize = () => { if (!el.isConnected) return removeEventListener('resize', onResize); if (two() !== wasTwo) { wasTwo = two(); draw(); } };
   addEventListener('resize', onResize);
@@ -1225,12 +1234,17 @@ function openReportFilter(startPage = '') {
   openModal('<div class="flt"></div>', m => {
     const box = $('.flt', m);
     const head = (left, title, right) => `<div class="flt-head">${left}<b>${title}</b>${right}</div>`;
+    // Kalender vollständig sichtbar machen: unter die feste Kopfzeile des Fensters scrollen (nicht nur den oberen Rand)
+    const showCal = () => {
+      const c = $('.rc-wrap, .flt-dates', box); if (!c) return;
+      const top = c.getBoundingClientRect().top - m.getBoundingClientRect().top + m.scrollTop - ($('.flt-head', box)?.offsetHeight || 0) - 8;
+      m.scrollTop = Math.max(0, top); // direkt springen (sanftes Scrollen wird nicht überall ausgeführt)
+    };
     const main = () => {
       const cur = presetOf(F);
       box.innerHTML = head('<button class="flt-pill" data-f="cancel">Abbrechen</button>', 'Filter', '<button class="flt-pill strong" data-f="apply">Anwenden</button>') + `
         <div class="flt-group">${PRESETS.map(([k, t]) => `<button class="flt-row" data-preset="${k}"><span>${t}</span>${k === cur ? `<span class="flt-check">${ic('check')}</span>` : ''}</button>`).join('')}</div>
-        ${F.range === 'custom' ? (betaRangeCal() ? '<div class="flt-group rc-wrap"></div>'
-          : `<div class="flt-group flt-dates"><label>Von <input type="date" data-d="from" value="${F.from}"></label><label>Bis <input type="date" data-d="to" value="${F.to}"></label></div>`) : ''}
+        ${F.range === 'custom' ? '<div class="flt-group rc-wrap"></div>' : ''}
         <div class="flt-group">${rowsOf().map(([k, [t]]) => `<button class="flt-row" data-page="${k}"><span>${t}</span><span class="flt-val">${esc(summary(k))} ${ic('chevR')}</span></button>`).join('')}</div>
         <div class="flt-group"><label class="flt-row"><span>Nur abrechenbare Zeiten</span><input type="checkbox" class="flt-switch" data-f="bill" ${F.billOnly ? 'checked' : ''}></label></div>
         <button class="flt-reset" data-f="reset">Alle Filter zurücksetzen</button>`;
@@ -1267,7 +1281,9 @@ function openReportFilter(startPage = '') {
         const p = PRESETS.find(x => x[0] === b.dataset.preset);
         F.range = p[2]; F.offset = p[3];
         if (F.range === 'custom' && (!F.from || !F.to)) { const r = reportRange(); F.from = dateStr(r.from); F.to = dateStr(addDays(r.to, -1)); }
-        return main();
+        main();
+        if (F.range === 'custom') showCal(); // ganzen Kalender ins Bild holen
+        return;
       }
       if (b.dataset.page) { box.onchange = null; return sub(b.dataset.page); }
       const f = b.dataset.f;
@@ -1288,7 +1304,8 @@ function openReportFilter(startPage = '') {
       if (c.dataset.f === 'bill') F.billOnly = c.checked;
       if (c.dataset.d) F[c.dataset.d] = c.value;
     });
-    if (startPage && pages[startPage] && (startPage !== 'team' || canTeam())) sub(startPage); else main();
+    if (startPage && pages[startPage] && (startPage !== 'team' || canTeam())) sub(startPage);
+    else { main(); if (startPage === 'cal') setTimeout(showCal, 30); }
   });
   $('#modal-root .modal')?.classList.add('flt-modal');
 }
@@ -1668,12 +1685,6 @@ function viewSettings() {
         </div>
       </div></div>
       ${window.Cloud ? Cloud.settingsHTML() : ''}
-      <div class="card"><div class="card-head">Testfunktionen</div><div class="card-body">
-        <label class="check" style="margin-bottom:6px"><input type="checkbox" data-change="beta-cal" ${s.betaRangeCal ? 'checked' : ''}> <b>Neuer Zeitraum-Kalender (Test)</b></label>
-        <p class="muted small" style="margin:0 0 14px">Berichte → Filter → „Benutzerdefiniert“: Zeitraum in einem Kalender markieren (Anfang und Ende antippen oder über die Tage ziehen) statt zwei Datumsfelder. Gilt nur auf diesem Gerät.</p>
-        <label class="check" style="margin-bottom:6px"><input type="checkbox" data-change="beta-rep" ${s.betaSavedReports ? 'checked' : ''}> <b>Gespeicherte Berichte (Test)</b></label>
-        <p class="muted small" style="margin:0">Berichte: eingestellte Filter unter einem Namen speichern und mit einem Klick wieder aufrufen, z. B. „Letzten Monat – alle Mitarbeiter“. Der Schalter gilt nur auf diesem Gerät, die Berichte selbst stehen auf allen Geräten zur Verfügung.</p>
-      </div></div>
       <div class="card"><div class="card-head">Daten</div><div class="card-body">
         <p class="muted" style="margin-top:0">${S.entries.length} Zeiteinträge, ${S.projects.length} Projekte, ${S.clients.length} Kunden, ${S.tags.length} Tags – ${cloudOn() ? 'in SharePoint gespeichert, mit Offline-Kopie auf diesem Gerät' : 'lokal auf diesem Gerät gespeichert'}.</p>
         <div class="data-actions">
@@ -1866,9 +1877,7 @@ document.addEventListener('change', ev => {
     UI.report[el.name] = el.value;
     if (el.name === 'range') UI.report.offset = 0;
     render();
-  } else if (k === 'beta-rep') { S.settings.betaSavedReports = el.checked; save(); toast(el.checked ? 'Testfunktion eingeschaltet' : 'Testfunktion ausgeschaltet'); }
-  else if (k === 'beta-cal') { S.settings.betaRangeCal = el.checked; save(); toast(el.checked ? 'Testfunktion eingeschaltet' : 'Testfunktion ausgeschaltet'); }
-  else if (k === 'proj-arch') { UI.showArchived = el.checked; render(); }
+  } else if (k === 'proj-arch') { UI.showArchived = el.checked; render(); }
   else if (k === 'role') setRole(el.dataset.id, el.dataset.role, el.checked);
   else if (k === 'role-active') setActive(el.dataset.id, el.checked);  else if (k === 'import') { importJSON(el.files[0]); el.value = ''; }
 });

@@ -5,10 +5,24 @@
    CHANGELOG.md und den Cache-Namen in sw.js mitziehen.
    Nummerierung: Hauptversion.Funktion.Korrektur (z. B. 1.9.1)
    ===================================================================== */
-const APP_VERSION = '1.17.0';
-const APP_RELEASE_DATE = '10.11.2026';
+const APP_VERSION = '1.18.0';
+const APP_RELEASE_DATE = '11.11.2026';
 
 const CHANGELOG = [
+  {
+    v: '1.18.0', date: '11.11.2026', title: 'Zeitraum-Kalender und gespeicherte Berichte für alle', items: [
+      'Berichte → Filter → „Benutzerdefiniert“: Zeitraum im Kalender markieren (Anfang und Ende antippen, am PC auch ziehen; am PC zwei Monate nebeneinander) statt zwei Datumsfelder.',
+      'Gespeicherte Berichte: Filter unter einem Namen speichern und mit einem Klick wieder aufrufen, auf allen Geräten gleich. Administratoren, Projektleitung und Buchhaltung können Berichte für alle sichtbar machen.',
+      'Der Testbereich in den Einstellungen entfällt, beide Funktionen sind für alle aktiv.'
+    ]
+  },
+  {
+    v: '1.17.1', date: '11.11.2026', title: 'Test: Zeitraum-Kalender verbessert', items: [
+      'Mouse-over: Nach dem ersten Tag werden die Tage bis zur Mausposition vorab hinterlegt.',
+      'Beim Antippen von „Benutzerdefiniert“ wird der ganze Kalender ins Bild geschoben (bisher fehlten auf kleinen Bildschirmen die letzten Wochen); ein Klick auf den Zeitraum in der Berichtsleiste öffnet ihn direkt.',
+      'Handy: Wischen über den Kalender blättert das Fenster (statt Tage zu markieren); Anfang und Ende werden angetippt.'
+    ]
+  },
   {
     v: '1.17.0', date: '10.11.2026', title: 'Test: Zeitraum-Kalender und gespeicherte Berichte', items: [
       'Testfunktion „Gespeicherte Berichte“ (Einstellungen → Testfunktionen): Berichte mit allen Filtern unter einem Namen speichern und mit einem Klick wieder aufrufen; auf allen Geräten gleich (SharePoint-Liste ZE_Berichte). Administratoren, Projektleitung und Buchhaltung können Berichte für alle sichtbar machen.',
