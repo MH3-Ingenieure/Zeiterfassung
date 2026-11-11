@@ -21,7 +21,7 @@ const HELP = [
     <ol>
       <li>Auf der Startseite (<b>Projekte</b>) auf den <b>Projektnamen</b> tippen. Das Eingabefenster öffnet sich mit diesem Projekt. (Alternativ: Menü <b>Zeiterfassung</b> → „Projekt wählen“.)</li>
       <li>Im umrandeten Feld <b>Kommentar</b> eintragen, was Sie gemacht haben – z. B. „Begehung Heizraum mit Hausmeister“. Mehrere Zeilen sind möglich.</li>
-      <li><b>„Tag wählen“</b> tippen und die Art der Tätigkeit wählen, z. B. „Ortstermin“. Das <b>€-Feld</b> (abrechenbar) ist vom Projekt vorbelegt.</li>
+      <li><b>„Tag wählen“</b> tippen und die Art der Tätigkeit wählen, z. B. „Ortstermin“. Das <b>€-Feld</b> (abrechenbar) ist vom Projekt vorbelegt. Hat das Projekt mehrere Stundensätze, erscheint daneben die <b>Satzart</b> (z. B. Senior Bauleiter, Bauleiter, BackOffice) – wählen Sie die, mit der Ihre Zeit abgerechnet wird. Die zuletzt gewählte Satzart bleibt vorbelegt. Beim Diktieren sagen Sie z. B. „… als Bauleiter“.</li>
       <li><b>Datum</b>, <b>Beginn</b> und <b>Ende</b> eintragen – die Dauer wird angezeigt. Arbeit über Mitternacht wird erkannt.</li>
       <li><b>HINZUFÜGEN</b> tippen. Der Eintrag erscheint in der Liste darunter.</li>
     </ol>
@@ -36,7 +36,7 @@ const HELP = [
     </ol>
     <p>Beim ersten Mal fragt das Gerät bzw. Teams, ob die App das Mikrofon verwenden darf – bitte <b>Erlauben</b>. Klappt die Aufnahme nicht (z. B. ohne Internet), zeigt das Fenster, wie man mit der Diktierfunktion des Geräts spricht (iPhone: Mikrofon der Tastatur, Windows: Windows-Taste + H).</p>
     <p><b>Mehrere Einträge auf einmal (Stapeleingabe):</b> einfach hintereinander erzählen, z. B. „Am 28.10. von 8 bis 12 für Kanzler UKD und von 13 bis 18 Uhr für NRW Bank Umkleiden. Am 29.10. von 8 bis 13 Uhr Mülheim Forum.“ Auch Zeiträume gehen: „vom 28.10. bis 30.10. jeweils von 8 bis 12 für Unipa“ oder „Montag bis Mittwoch jeweils …“ – das ergibt einen Eintrag pro Tag. Die <b>Tätigkeit</b> einfach zum jeweiligen Projekt sagen („… von 8 bis 12 Kanzler UKD <i>Planung</i>, von 13 bis 18 NRW Bank <i>Begehung</i> …“); eine Tätigkeit ganz am Anfang („<i>Planung:</i> vom 28. bis 30.10. …“) gilt für alle. Die App zeigt alle Einträge zur Kontrolle; einzelne lassen sich mit ✕ herausnehmen, dann <b>Alle speichern</b>.</p>
-    <p>Tipps: Den <b>Projektnamen</b> mitsprechen. Ohne Datum = heute. Erkannt werden u. a. heute, gestern, Wochentage und Daten wie „12.10.“. Nur eine Dauer („90 Minuten“)? Dann wird der Beginn angenommen – bitte prüfen.</p>`
+    <p>Tipps: Die <b>Projektbezeichnung</b> (oder die Projektnummer) mitsprechen. Ohne Datum = heute. Erkannt werden u. a. heute, gestern, Wochentage und Daten wie „12.10.“. Nur eine Dauer („90 Minuten“)? Dann wird der Beginn angenommen – bitte prüfen.</p>`
   },
   {
     roles: 'all', title: 'Tags und Kommentar – was gehört wohin?', body: `
@@ -124,8 +124,9 @@ const HELP = [
     roles: ['admin', 'bh'], title: 'Projekte und Kunden anlegen (Buchhaltung, Administratoren)', body: `
     <ol>
       <li>Links auf <b>Projekte</b> → <b>NEUES PROJEKT</b>.</li>
-      <li>Name, Kunde, Farbe festlegen. Den <b>Projektleiter</b> wählt der Administrator aus.</li>
-      <li><b>„Einträge standardmäßig abrechenbar“</b> anhaken, wenn die Zeiten abgerechnet werden – dann ist der <b>Stundensatz Pflicht</b>.</li>
+      <li><b>Projektnummer</b> und <b>Projektbezeichnung</b> eintragen (beide sind einzeln optional, mindestens eines muss ausgefüllt sein; in der App erscheint „Nummer – Bezeichnung“). Dazu Kunde und Farbe festlegen. Den <b>Projektleiter</b> wählt der Administrator aus.</li>
+      <li><b>„Einträge standardmäßig abrechenbar“</b> anhaken, wenn die Zeiten abgerechnet werden – dann ist mindestens ein <b>Stundensatz Pflicht</b>.</li>
+      <li><b>Mehrere Stundensätze:</b> Der Administrator legt unter <b>Einstellungen → Satzarten für Stundensätze</b> bis zu 4 Bezeichnungen an (z. B. Senior Bauleiter, Bauleiter, BackOffice). Danach trägt man beim Projekt für jede Satzart den Satz ein; leer = diese Satzart wird bei dem Projekt nicht angeboten. Wer Zeiten erfasst, wählt pro Eintrag die Satzart; Berichte und Export rechnen mit dem Satz der gewählten Satzart und zeigen sie an.</li>
       <li><b>Speichern.</b></li>
     </ol>
     <ul>
@@ -158,7 +159,7 @@ const HELP = [
       <li>Bei einer einzelnen Person schlüsselt die App automatisch <b>nach Projekt</b> auf; bei allen zusammen <b>nach Mitarbeiter</b>. Der Einzelnachweis enthält Name, Kommentar, Projekt und Betrag.</li>
       <li>Export über <b>Exportieren</b>: PDF, CSV oder Excel.</li>
     </ol>
-    <p>Beträge = Stunden × Stundensatz des Projekts, nur für abrechenbare Zeiten.</p>`
+    <p>Beträge = Stunden × Stundensatz des Projekts (bei mehreren Satzarten: der gewählten Satzart), nur für abrechenbare Zeiten.</p>`
   },
   {
     roles: ['admin'], title: 'Administration: Benutzer & Rollen', body: `

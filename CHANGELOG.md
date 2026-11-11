@@ -1,11 +1,19 @@
 # Zeiterfassung – Änderungsprotokoll
 
-Aktuelles Release: **1.18.0** vom 11.11.2026
+Aktuelles Release: **1.19.0** vom 12.11.2026
 
 Nummerierung: *Hauptversion.Funktion.Korrektur*. Neue Funktionen erhöhen die mittlere Zahl, reine Korrekturen die letzte.
 Die gleiche Liste ist in der App unter **Einstellungen → Über diese App → Änderungsprotokoll anzeigen** zu sehen (Quelle: `version.js`).
 
 ---
+
+## 1.19.0 – 12.11.2026 – Projektnummer, Projektbezeichnung und bis zu 4 Stundensätze
+- Satzarten (`S.ratekinds`, SharePoint-Liste `ZE_Satzarten`, nur Administrator schreibt); je Projekt `rate`, `rate2` … `rate4` in `ZE_Stundensaetze` (Spalten Rate2–Rate4), angebotene Satzarten `levels` in `ZE_Projekte` (Spalte RateLevels, auch für Mitarbeiter lesbar, ohne Beträge); je Eintrag `rateLevel` (Spalte RateLevel in den Zeitenlisten, `COLS_VERSION` 3, `PERM_VERSION` 3). Neue Spalten werden bei fehlender Spalte mit leeren Werten weggelassen (`withFallback`), damit Mitarbeiter nicht blockiert sind, bevor ein Administrator die App öffnet.
+- Auswahl „Satzart“ im Eingabefenster, Bearbeiten-Dialog und Diktat („als Bauleiter“); Berichte/Export (Spalte „Satzart“) rechnen mit dem gewählten Satz.
+- Projekt: neue Felder `number`, `title`; `name` bleibt die zusammengesetzte Anzeige „Nummer – Bezeichnung“ (`projName`, `projTitle`), damit Anzeige, Suche, Sortierung, Berichte und Export unverändert funktionieren. Alte Projekte: Bezeichnung = Name.
+- SharePoint ZE_Projekte: Spalten `ProjectNumber`, `ProjectTitle` (Title = Anzeigename).
+- Diktieren vergleicht die Bezeichnung; genannte Nummer = sicherer Treffer.
+- Geänderte Dateien: `app.js`, `cloud.js`, `dictate.js`, `help.js`, `styles.css`, `version.js`, `sw.js`, `CHANGELOG.md`
 
 ## 1.18.0 – 11.11.2026 – Zeitraum-Kalender und gespeicherte Berichte für alle
 - Testschalter (`betaRangeCal`, `betaSavedReports`) und Karte „Testfunktionen“ entfernt; beide Funktionen immer aktiv. Hilfe ergänzt.

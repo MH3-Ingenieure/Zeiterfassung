@@ -19,10 +19,11 @@ const Cloud = (() => {
   const spScopes = () => [`https://${new URL(cfg.siteUrl).hostname}/AllSites.FullControl`];
   const GRAPH = 'https://graph.microsoft.com/v1.0';
   const spBase = () => cfg.siteUrl.replace(/\/+$/, '');
-  const SHARED = ['roles', 'clients', 'projects', 'rates', 'tags', 'reports'];
+  const SHARED = ['roles', 'clients', 'projects', 'rates', 'tags', 'reports', 'ratekinds'];
   const KINDS = [...SHARED, 'entries'];
-  // für Mitarbeiter ggf. nicht sichtbar; ZE_Berichte legt erst ein Administrator an
-  const OPTIONAL = new Set(['roles', 'rates', 'reports']);
+  // für Mitarbeiter ggf. nicht sichtbar; ZE_Berichte und ZE_Satzarten legt erst ein Administrator an
+  const OPTIONAL = new Set(['roles', 'rates', 'reports', 'ratekinds']);
+  const RK = ['rate', 'rate2', 'rate3', 'rate4'];  // Stundensatz je Satzart 1–4 (Satzart 1 = „rate“)
   const ROLE_NAMES = { admin: 'Administrator', pl: 'Projektleiter', ma: 'Mitarbeiter', bh: 'Buchhaltung' };
 
   const text = (name, displayName, indexed) => ({ name, displayName, text: {}, indexed });
@@ -31,7 +32,7 @@ const Cloud = (() => {
   const dt = (name, displayName, indexed) => ({ name, displayName, dateTime: { format: 'dateTime' }, indexed });
   const ENTRY_COLS = [text('AppId', 'App-ID', true), text('UserId', 'Benutzer-ID', true), text('UserName', 'Mitarbeiter'),
     text('ProjectAppId', 'Projekt-ID'), text('ProjectName', 'Projekt'), text('ClientName', 'Kunde'), text('TagAppIds', 'Tag-IDs'),
-    text('TagNames', 'Tags'), bool('Billable', 'Abrechenbar'), dt('StartTime', 'Beginn', true), dt('EndTime', 'Ende'), num('Hours', 'Stunden'),
+    text('TagNames', 'Tags'), bool('Billable', 'Abrechenbar'), dt('StartTime', 'Beginn', true), dt('EndTime', 'Ende'), num('Hours', 'Stunden'), num('RateLevel', 'Satzart (0–3)'),
     { name: 'Comment', displayName: 'Kommentar', text: { allowMultipleLines: true, linesForEditing: 6 } }]; // vollständiger Kommentar (Titel max. 255 Zeichen)
   const LISTS = {
     roles: { name: 'ZE_Rollen', cols: [text('AppId', 'Benutzer-ID', true), text('Upn', 'Anmeldename'), text('Roles', 'Rollen'), bool('Active', 'Aktiv')] },
@@ -39,10 +40,12 @@ const Cloud = (() => {
     projects: {
       name: 'ZE_Projekte', cols: [text('AppId', 'App-ID', true), text('ClientAppId', 'Kunden-ID'), text('Color', 'Farbe'), bool('Billable', 'Abrechenbar'),
         bool('Archived', 'Archiviert'), text('LeadId', 'Projektleiter-ID'), text('LeadName', 'Projektleiter'), text('ListId', 'Zeitenliste'),
-        { name: 'MemberIds', displayName: 'Team (IDs)', text: { allowMultipleLines: true } }]
+        { name: 'MemberIds', displayName: 'Team (IDs)', text: { allowMultipleLines: true } },
+        text('ProjectNumber', 'Projektnummer'), text('ProjectTitle', 'Projektbezeichnung'), text('RateLevels', 'Satzarten')] // Title = „Nummer – Bezeichnung“
     },
-    rates: { name: 'ZE_Stundensaetze', cols: [text('AppId', 'Projekt-ID', true), num('Rate', 'Stundensatz')] },
+    rates: { name: 'ZE_Stundensaetze', cols: [text('AppId', 'Projekt-ID', true), num('Rate', 'Stundensatz (Satzart 1)'), num('Rate2', 'Stundensatz Satzart 2'), num('Rate3', 'Stundensatz Satzart 3'), num('Rate4', 'Stundensatz Satzart 4')] },
     tags: { name: 'ZE_Tags', cols: [text('AppId', 'App-ID', true)] },
+    ratekinds: { name: 'ZE_Satzarten', cols: [text('AppId', 'App-ID', true)] }, // Bezeichnungen der Satzarten 1–4 (Title)
     // gespeicherte Berichte (Filter); jeder bearbeitet nur seine eigenen, „Für alle“ sehen alle
     reports: { name: 'ZE_Berichte', cols: [text('AppId', 'App-ID', true), text('OwnerId', 'Ersteller-ID'), text('OwnerName', 'Ersteller'), bool('Shared', 'Für alle'),
       { name: 'Data', displayName: 'Filter', text: { allowMultipleLines: true } }] },
@@ -75,7 +78,7 @@ const Cloud = (() => {
   }
   const canWrite = k => {
     const r = myRole();
-    if (k === 'roles' || k === 'tags') return r.admin;
+    if (k === 'roles' || k === 'tags' || k === 'ratekinds') return r.admin;
     if (k === 'projects') return r.admin || r.bh || r.pl;   // Projektleiter: nur Team seiner Projekte (in der App begrenzt)
     if (k === 'clients' || k === 'rates') return r.admin || r.bh;
     return true;
@@ -344,27 +347,28 @@ const Cloud = (() => {
   function localRecords(k) {
     switch (k) {
       case 'entries': return S.running ? [...S.entries, { ...S.running, end: null }] : [...S.entries];
-      case 'rates': return S.projects.filter(p => p.rate != null && p.rate !== '').map(p => ({ id: p.id, rate: Number(p.rate) }));
+      case 'rates': return S.projects.filter(p => RK.some(k => p[k] != null && p[k] !== '')).map(p => ({ id: p.id, ...Object.fromEntries(RK.map(k => [k, p[k] == null || p[k] === '' ? null : Number(p[k])])) }));
       default: return S[k] || [];
     }
   }
   function canon(k, r) {
     switch (k) {
       case 'roles': return { id: r.id, name: r.name || '', upn: r.upn || '', roles: [...(r.roles || [])].sort(), active: !!r.active };
-      case 'projects': return { id: r.id, name: r.name, clientId: r.clientId || null, color: r.color || '', billable: !!r.billable, archived: !!r.archived, leadId: r.leadId || null, leadName: r.leadName || '', listId: r.listId || null, memberIds: [...(r.memberIds || [])].sort() };
-      case 'rates': return { id: r.id, rate: Number(r.rate) };
-      case 'entries': return { id: r.id, description: r.description || '', projectId: r.projectId || null, tagIds: [...(r.tagIds || [])], billable: !!r.billable, start: sec(r.start), end: r.end == null ? null : sec(r.end) };
+      case 'projects': return { id: r.id, name: r.name, ...(r.number ? { number: r.number, title: r.title || '' } : {}), ...(r.levels?.length ? { levels: [...r.levels].sort() } : {}), clientId: r.clientId || null, color: r.color || '', billable: !!r.billable, archived: !!r.archived, leadId: r.leadId || null, leadName: r.leadName || '', listId: r.listId || null, memberIds: [...(r.memberIds || [])].sort() };
+      case 'rates': return { id: r.id, rate: r.rate == null ? null : Number(r.rate), ...Object.fromEntries(RK.slice(1).filter(k => r[k] != null).map(k => [k, Number(r[k])])) };
+      case 'entries': return { id: r.id, description: r.description || '', projectId: r.projectId || null, tagIds: [...(r.tagIds || [])], billable: !!r.billable, ...(r.rateLevel ? { rateLevel: r.rateLevel } : {}), start: sec(r.start), end: r.end == null ? null : sec(r.end) };
       case 'reports': return { id: r.id, name: r.name || '', ownerId: r.ownerId || '', ownerName: r.ownerName || '', shared: !!r.shared, data: JSON.stringify(r.data || {}) };
       default: return { id: r.id, name: r.name };
     }
   }
+  const pTitle = r => (r.number ? (r.title || '') : (r.title ?? r.name ?? '')); // Bezeichnung; ohne Nummer = Name (Projekte vor 1.19)
   const ser =(k, r) => JSON.stringify(canon(k, r));
   function toFields(k, r) {
     const c = canon(k, r);
     switch (k) {
       case 'roles': return { Title: c.name || c.upn, AppId: c.id, Upn: c.upn, Roles: c.roles.join(','), Active: c.active };
-      case 'projects': return { Title: c.name, AppId: c.id, ClientAppId: c.clientId || '', Color: c.color, Billable: c.billable, Archived: c.archived, LeadId: c.leadId || '', LeadName: c.leadName, ListId: c.listId || '', MemberIds: c.memberIds.join(',') };
-      case 'rates': return { Title: proj(c.id)?.name || c.id, AppId: c.id, Rate: c.rate };
+      case 'projects': return { Title: c.name, ProjectNumber: c.number || '', ProjectTitle: c.number ? c.title : '', RateLevels: (c.levels || []).join(','), AppId: c.id, ClientAppId: c.clientId || '', Color: c.color, Billable: c.billable, Archived: c.archived, LeadId: c.leadId || '', LeadName: c.leadName, ListId: c.listId || '', MemberIds: c.memberIds.join(',') };
+      case 'rates': return { Title: proj(c.id)?.name || c.id, AppId: c.id, Rate: c.rate, Rate2: c.rate2 ?? null, Rate3: c.rate3 ?? null, Rate4: c.rate4 ?? null };
       case 'reports': return { Title: c.name.slice(0, 250) || '-', AppId: c.id, OwnerId: c.ownerId, OwnerName: c.ownerName, Shared: c.shared, Data: c.data };
       case 'entries': {
         const p = proj(c.projectId), cl = p && client(p.clientId), h = c.end ? (c.end - c.start) / HOUR : 0;
@@ -373,7 +377,7 @@ const Cloud = (() => {
           AppId: c.id, UserId: S.sync.userId, UserName: account.name || account.username,
           ProjectAppId: c.projectId || '', ProjectName: p?.name || '', ClientName: cl?.name || '',
           TagAppIds: c.tagIds.join(','), TagNames: c.tagIds.map(tag).filter(Boolean).map(t => t.name).join(', '),
-          Billable: c.billable, StartTime: isoS(c.start), EndTime: c.end ? isoS(c.end) : null, Hours: Math.round(h * 100) / 100
+          Billable: c.billable, StartTime: isoS(c.start), EndTime: c.end ? isoS(c.end) : null, Hours: Math.round(h * 100) / 100, RateLevel: c.rateLevel || 0
         };
       }
       default: return { Title: c.name, AppId: c.id };
@@ -382,10 +386,10 @@ const Cloud = (() => {
   function fromFields(k, f) {
     switch (k) {
       case 'roles': return { id: f.AppId, name: f.Title || '', upn: f.Upn || '', roles: (f.Roles || '').split(',').filter(Boolean).sort(), active: !!f.Active };
-      case 'projects': return { id: f.AppId, name: f.Title || '', clientId: f.ClientAppId || null, color: f.Color || '#03a9f4', billable: !!f.Billable, archived: !!f.Archived, leadId: f.LeadId || null, leadName: f.LeadName || '', listId: f.ListId || null, memberIds: (f.MemberIds || '').split(',').filter(Boolean).sort() };
-      case 'rates': return { id: f.AppId, rate: Number(f.Rate) };
+      case 'projects': return { id: f.AppId, name: f.Title || '', number: f.ProjectNumber || '', title: f.ProjectNumber ? (f.ProjectTitle || '') : (f.ProjectTitle || f.Title || ''), clientId: f.ClientAppId || null, color: f.Color || '#03a9f4', billable: !!f.Billable, archived: !!f.Archived, leadId: f.LeadId || null, leadName: f.LeadName || '', listId: f.ListId || null, memberIds: (f.MemberIds || '').split(',').filter(Boolean).sort(), levels: (f.RateLevels || '').split(',').filter(x => x !== '').map(Number).sort() };
+      case 'rates': return { id: f.AppId, ...Object.fromEntries(RK.map((k, i) => { const v = f[i ? 'Rate' + (i + 1) : 'Rate']; return [k, v == null || v === '' ? null : Number(v)]; })) };
       case 'reports': { let data = {}; try { data = JSON.parse(f.Data || '{}'); } catch { } return { id: f.AppId, name: f.Title === '-' ? '' : (f.Title || ''), ownerId: f.OwnerId || '', ownerName: f.OwnerName || '', shared: !!f.Shared, data }; }
-      case 'entries': return { id: f.AppId, description: f.Comment != null ? f.Comment : f.Title === '-' ? '' : (f.Title || ''), projectId: f.ProjectAppId || null, tagIds: (f.TagAppIds || '').split(',').filter(Boolean), billable: !!f.Billable, start: Date.parse(f.StartTime), end: f.EndTime ? Date.parse(f.EndTime) : null };
+      case 'entries': return { id: f.AppId, description: f.Comment != null ? f.Comment : f.Title === '-' ? '' : (f.Title || ''), projectId: f.ProjectAppId || null, tagIds: (f.TagAppIds || '').split(',').filter(Boolean), billable: !!f.Billable, rateLevel: Number(f.RateLevel) || 0, start: Date.parse(f.StartTime), end: f.EndTime ? Date.parse(f.EndTime) : null };
       default: return { id: f.AppId, name: f.Title || '' };
     }
   }
@@ -399,12 +403,12 @@ const Cloud = (() => {
       }
       case 'projects': { // Stundensatz kommt aus eigener Liste – lokal vorhandenen Wert behalten
         const old = new Map(S.projects.map(p => [p.id, p]));
-        S.projects = list.map(p => ({ ...p, rate: p.rate !== undefined ? p.rate : (old.get(p.id)?.rate ?? null) }));
+        S.projects = list.map(p => { const o = old.get(p.id), out = { ...p }; RK.forEach(k => { out[k] = p[k] !== undefined ? p[k] : (o?.[k] ?? null); }); return out; });
         break;
       }
       case 'rates': {
-        const m = new Map(list.map(r => [r.id, r.rate]));
-        S.projects.forEach(p => { p.rate = m.has(p.id) ? m.get(p.id) : null; });
+        const m = new Map(list.map(r => [r.id, r]));
+        S.projects.forEach(p => { const r = m.get(p.id); RK.forEach(k => { p[k] = r && r[k] != null ? r[k] : null; }); });
         break;
       }
       default: S[k] = list;
@@ -491,15 +495,20 @@ const Cloud = (() => {
     }
   }
 
-  // Listen, die noch keine Kommentar-Spalte haben (vor dem Update angelegt): ohne sie schreiben
+  // Listen, die noch neue Spalten nicht haben (vor dem Update angelegt; ein Administrator ergänzt sie beim ersten Öffnen):
+  // Kommentar und leere/Null-Werte der neuen Spalten weglassen und erneut schreiben. Sonst Hinweis an den Administrator.
+  const NEW_COLS = ['RateLevel', 'ProjectNumber', 'ProjectTitle', 'RateLevels', 'Rate2', 'Rate3', 'Rate4'];
+  const COL_MISSING = /not recognized|nicht erkannt|does not exist|existiert nicht/i;
+  const STALE = 'Die SharePoint-Listen sind noch nicht auf dem neuesten Stand – ein Administrator muss die App einmal öffnen.';
   async function withFallback(fields, fn) {
     try { return await fn(fields); }
     catch (e) {
-      if (e.status === 400 && /not recognized|nicht erkannt/i.test(e.message) && !/comment/i.test(e.message))
-        throw new Error('Die SharePoint-Listen sind noch nicht auf dem neuesten Stand – ein Administrator muss die App einmal öffnen.');
-      if (e.status !== 400 || !('Comment' in fields) || !/comment/i.test(e.message)) throw e;
-      const { Comment, ...rest } = fields;
-      return fn(rest);
+      if (e.status !== 400 || !COL_MISSING.test(e.message)) throw e;
+      const rest = {};
+      for (const [k, v] of Object.entries(fields)) if (!(k === 'Comment' || (NEW_COLS.includes(k) && (v === '' || v == null || v === 0)))) rest[k] = v;
+      if (Object.keys(rest).length === Object.keys(fields).length) throw new Error(STALE);
+      try { return await fn(rest); }
+      catch (e2) { throw e2.status === 400 && COL_MISSING.test(e2.message) ? new Error(STALE) : e2; }
     }
   }
   async function postItem(ids, k, listId, fields) {
@@ -612,8 +621,8 @@ const Cloud = (() => {
     (S.roles || []).map(r => [r.id, r.upn, [...r.roles].sort().join(), r.active]).sort(),
     S.projects.map(p => [p.id, p.leadId || '', p.listId || '', !!p.archived]).sort()
   ]);
-  const COLS_VERSION = 2; // erhöhen, wenn Zeitenlisten neue Spalten bekommen
-  const PERM_VERSION = 2; // erhöhen, wenn neue Listen Rechte brauchen (2: ZE_Berichte)
+  const COLS_VERSION = 3; // erhöhen, wenn Zeitenlisten neue Spalten bekommen (3: Satzart je Eintrag)
+  const PERM_VERSION = 3; // erhöhen, wenn neue Listen Rechte brauchen (2: ZE_Berichte, 3: ZE_Satzarten)
   function maybeReconcile() {
     const pending = S.projects.some(p => !p.listId) || S.sync.permApplied !== permSignature() || S.sync.colsV !== COLS_VERSION || S.sync.permV !== PERM_VERSION;
     if (pending && !perm.running && !perm.error) reconcile();
@@ -695,7 +704,8 @@ const Cloud = (() => {
         { id: ids.tags, assign: plan(() => RD.read) }, // Tags pflegt nur der Administrator
         { id: ids.roles, assign: plan(() => RD.read) },
         { id: ids.rates, assign: plan(r => (has(r, 'bh') ? RD.contribute : has(r, 'pl') ? RD.read : null)) },
-        { id: ids.reports, reports: true, assign: plan(() => RD.contribute) } // alle lesen, jeder bearbeitet nur seine eigenen
+        { id: ids.reports, reports: true, assign: plan(() => RD.contribute) }, // alle lesen, jeder bearbeitet nur seine eigenen
+        { id: ids.ratekinds, assign: plan(() => RD.read) } // Satzarten pflegt nur der Administrator
       ].filter(l => l.id);
       for (const l of lists) await applyListPerms(l, owners.Id);
 

@@ -93,11 +93,14 @@ function dzProjects(text) {
   const words = dzNorm(text).split(' ').filter(w => w.length >= 2).map(w => w.match(/^(.{3,})projekt(?:e|en|es|s)?$/)?.[1] || w);
   const tagWords = new Set(S.tags.flatMap(t => dzNorm(t.name).split(' ')));
   const scored = visibleProjects().filter(p => !p.archived).map(p => {
-    const nameW = dzNorm(p.name).split(' ').filter(w => (w.length >= 3 || /\d/.test(w)) && !DZ_STOP.has(w));
+    // Verglichen wird die Bezeichnung (ohne Projektnummer); die Nummer ist nur ein Zusatz, wenn sie genannt wird
+    const titleN = dzNorm(projTitle(p)), numN = dzNorm(p.number || '');
+    const nameW = titleN.split(' ').filter(w => (w.length >= 3 || /\d/.test(w)) && !DZ_STOP.has(w));
     const cliW = dzNorm(client(p.clientId)?.name || '').split(' ').filter(w => w.length >= 3 && !DZ_STOP.has(w));
+    if (numN.length >= 3 && (' ' + words.join(' ') + ' ').includes(' ' + numN + ' ')) return { p, score: 1.2, hits: numN.split(' ') }; // Nummer genannt → sicherer Treffer
     if (!nameW.length) return { p, score: 0, hits: [] };
-    // ganzer Projektname im Text (dank Wortliste des Sprachdienstes häufig exakt) → sicherer Treffer
-    const full = dzNorm(p.name);
+    // ganze Bezeichnung im Text (dank Wortliste des Sprachdienstes häufig exakt) → sicherer Treffer
+    const full = titleN;
     if (full.length >= 4 && (' ' + words.join(' ') + ' ').includes(' ' + full + ' ')) return { p, score: 1.2, hits: full.split(' ') };
     // dasselbe ohne Leerzeichen: „NRW.BANK“ = „NRW Bank“ = „NRWBank“
     const fullJ = full.replace(/ /g, '');
@@ -243,7 +246,7 @@ function dzBatch(text) {
 
 function parseDictation(text) {
   let rest = ' ' + text + ' ';
-  const r = { date: null, start: null, end: null, projectId: null, candidates: [], tagIds: [], comment: '', assumed: [] };
+  const r = { date: null, start: null, end: null, projectId: null, candidates: [], tagIds: [], comment: '', assumed: [], rateLevel: null };
   // 1) Uhrzeiten
   let m = rest.match(DZ_BETWEEN_RE) || rest.match(DZ_RANGE_RE); // „zwischen 14 und 15 Uhr“, „von 9 bis 12“, „9–12“
   if (m) {
@@ -294,6 +297,12 @@ function parseDictation(text) {
   const tagW = S.tags.filter(t => r.tagIds.includes(t.id)).flatMap(t => dzNorm(t.name).split(' ').filter(w => w.length >= 4));
   const tagTok = []; // entfernte Tätigkeitswörter (für „Besprechung mit dem Bauherrn“)
   if (tagW.length) rest = rest.split(/(\s+)/).map(tok => { if (isHit(tok, tagW, (n, tw) => dzTagWord(n, tw))) { tagTok.push(tok.replace(/[,.;:]+$/, '')); return ' '; } return tok; }).join('');
+  // 4b) Satzart genannt („… als Senior Bauleiter“, „Satzart BackOffice“) – nur mit Stichwort, damit „Besprechung mit dem Bauleiter“ nicht fälschlich zählt
+  const reEsc = s => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  for (const k of [...rateKinds()].sort((a, b) => b.name.length - a.name.length)) { // „Senior Bauleiter“ vor „Bauleiter“
+    const rx = new RegExp('\\b(?:als|satz|satzart|stufe)\\s+(?:der\\s+|die\\s+|den\\s+)?(?<![\\wäöüÄÖÜß])' + k.name.trim().split(/[\s-]+/).map(reEsc).join('[\\s-]*') + '(?![\\wäöüÄÖÜß])', 'i');
+    if (rx.test(rest)) { r.rateLevel = Number(k.id) - 1; rest = rest.replace(rx, ' '); break; }
+  }
   // 5) Kommentar = was übrig bleibt, ohne Satzzeichen-Reste und Füllwörter am Anfang/Ende
   const FILL = /^(auf|beim|bei|für|fur|im|in|am|um|ab|von|bis|und|zwischen|uhr|ein|eine|einer|stunde|stunden|minuten|projekt|projekte|das|dem|den|der|die|mit|zum|zur|heute|dann|danach|noch|außerdem|ausserdem|anschließend|anschliessend|sowie|jeweils|auch|täglich|taglich)$/i;
   let words = rest.replace(/\b(für das projekt|für projekt|beim projekt|auf dem projekt|auf projekt)\b/gi, ' ')
@@ -393,7 +402,7 @@ function dzAzureSession({ onText, onState, onEnd }) {
       // Wortliste: so schreibt der Dienst Projekt- und Tag-Namen richtig
       const pl = SDK.PhraseListGrammar.fromRecognizer(rec), seen = new Set();
       const add = n => { n = String(n || '').trim(); if (n && !seen.has(n)) { seen.add(n); pl.addPhrase(n); } };
-      visibleProjects().filter(p => !p.archived).forEach(p => { add(p.name); add(client(p.clientId)?.name); });
+      visibleProjects().filter(p => !p.archived).forEach(p => { add(projTitle(p)); add(p.name); add(client(p.clientId)?.name); });
       S.tags.forEach(t => add(t.name));
       rec.recognizing = (s, e) => { onText((finalText + ' ' + e.result.text).trim()); armIdle(3500); };
       rec.recognized = (s, e) => {
@@ -474,13 +483,24 @@ function openDictate() {
           <div class="field"><span>Ende</span>${timeSelHTML('dz-end-' + i, r.end || '')}</div>
         </div>
         <div class="field"><span>Tags</span><div class="dz-tags">${S.tags.length ? [...S.tags].sort(byName).map(t => `<button type="button" class="chip dz-tag ${r.tagIds.includes(t.id) ? 'on' : ''}" data-tid="${t.id}">${esc(t.name)}</button>`).join(' ') : '<span class="muted">keine Tags angelegt</span>'}</div></div>
+        <div class="field dz-rate" data-want="${r.rateLevel ?? ''}"></div>
         <label class="field"><span>Kommentar</span><input class="dz-comment" value="${esc(r.comment)}"></label>
         <div class="dz-sum"></div>
       </div>`;
     };
     const readCard = c => {
       const i = c.dataset.i, date = $('.dz-date', c).value, [s, e] = rangeFrom(date, $('#dz-start-' + i, c).value, $('#dz-end-' + i, c).value);
-      return { s, e, pid: $('.dz-proj', c).value || null, tagIds: [...c.querySelectorAll('.dz-tag.on')].map(b => b.dataset.tid), comment: $('.dz-comment', c).value.trim() };
+      const lv = $('.dz-level', c);
+      return { s, e, pid: $('.dz-proj', c).value || null, tagIds: [...c.querySelectorAll('.dz-tag.on')].map(b => b.dataset.tid), comment: $('.dz-comment', c).value.trim(), rateLevel: lv ? Number(lv.value) : 0, askedLevel: !!lv };
+    };
+    // Satzart-Auswahl, wenn das gewählte Projekt mehrere Satzarten hat (Vorrang: aktuelle Wahl, dann Gesprochenes, dann zuletzt benutzt)
+    const fillRate = c => {
+      const box = $('.dz-rate', c), p = proj($('.dz-proj', c).value), l = p ? levelChoices(p) : [];
+      if (l.length < 2 || !p.billable) { box.innerHTML = ''; return; }
+      const want = box.dataset.want === '' ? null : Number(box.dataset.want), curSel = $('.dz-level', c), cur = curSel ? Number(curSel.value) : null;
+      const sel = [cur, want].find(x => x != null && l.includes(x)) ?? defaultLevel(p);
+      box.innerHTML = `<span>Satzart</span><select class="dz-level">${l.map(i => `<option value="${i}" ${i === sel ? 'selected' : ''}>${esc(kindName(i))}</option>`).join('')}</select>`;
+      $('.dz-level', box).addEventListener('input', sum);
     };
     const sum = () => {
       const cards = [...out.querySelectorAll('.dz-card')];
@@ -501,7 +521,9 @@ function openDictate() {
       out.innerHTML = (res.length > 1 ? `<div class="dz-batch-head">${ic('list')} <b>${res.length} Einträge erkannt</b> – bitte prüfen, dann alle zusammen speichern.</div>` : '')
         + res.map((r, i) => cardHTML(r, i, res.length)).join('');
       out.querySelectorAll('input, select').forEach(i => i.addEventListener('input', sum));
-      out.querySelectorAll('.dz-cand').forEach(b => b.addEventListener('click', () => { $('.dz-proj', b.closest('.dz-card')).value = b.dataset.pid; sum(); }));
+      out.querySelectorAll('.dz-card').forEach(fillRate);
+      out.querySelectorAll('.dz-proj').forEach(s => s.addEventListener('input', () => fillRate(s.closest('.dz-card'))));
+      out.querySelectorAll('.dz-cand').forEach(b => b.addEventListener('click', () => { const c = b.closest('.dz-card'); $('.dz-proj', c).value = b.dataset.pid; fillRate(c); sum(); }));
       out.querySelectorAll('.dz-tag').forEach(b => b.addEventListener('click', () => b.classList.toggle('on')));
       out.querySelectorAll('.dz-del').forEach(b => b.addEventListener('click', () => { b.closest('.dz-card').remove(); sum(); }));
       sum();
@@ -535,7 +557,8 @@ function openDictate() {
     saveBtn.addEventListener('click', () => {
       const vals = [...out.querySelectorAll('.dz-card')].map(readCard);
       if (!vals.length || vals.some(v => v.s == null || (!v.pid && needProj()))) return sum();
-      for (const v of vals) entryStore().push({ id: uid(), description: v.comment, projectId: v.pid, tagIds: v.tagIds, billable: !!proj(v.pid)?.billable, start: v.s, end: v.e });
+      for (const v of vals) entryStore().push({ id: uid(), description: v.comment, projectId: v.pid, tagIds: v.tagIds, billable: !!proj(v.pid)?.billable, rateLevel: v.rateLevel, start: v.s, end: v.e });
+      const asked = vals.filter(v => v.askedLevel).pop(); if (asked) S.settings.lastRateLevel = asked.rateLevel; // Vorbelegung merken
       save(); closeModal(); render();
       const v = vals[0], p = proj(v.pid);
       toast(vals.length > 1 ? `${vals.length} Einträge gespeichert (${fmtClock(vals.reduce((a, x) => a + x.e - x.s, 0))})`

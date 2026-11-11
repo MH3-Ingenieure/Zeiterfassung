@@ -5,10 +5,20 @@
    CHANGELOG.md und den Cache-Namen in sw.js mitziehen.
    Nummerierung: Hauptversion.Funktion.Korrektur (z. B. 1.9.1)
    ===================================================================== */
-const APP_VERSION = '1.18.0';
-const APP_RELEASE_DATE = '11.11.2026';
+const APP_VERSION = '1.19.0';
+const APP_RELEASE_DATE = '12.11.2026';
 
 const CHANGELOG = [
+  {
+    v: '1.19.0', date: '12.11.2026', title: 'Projektnummer, Projektbezeichnung und bis zu 4 Stundensätze', items: [
+      'Stundensätze: Der Administrator legt unter Einstellungen bis zu 4 Satzarten an (z. B. Senior Bauleiter, Bauleiter, BackOffice). Je Projekt trägt die Buchhaltung für jede Satzart einen Satz ein; beim Eintragen einer Zeit wird die Satzart gewählt (auch im Bearbeiten-Dialog und beim Diktieren: „… als Bauleiter“). Berichte und Export rechnen mit dem gewählten Satz und zeigen die Satzart an.',
+      'Ohne eingerichtete Satzarten bleibt es bei einem Stundensatz je Projekt; bestehende Einträge und Projekte bleiben unverändert (Satzart 1).',
+      'Projekte haben zwei Felder: Projektnummer und Projektbezeichnung. Beide sind einzeln optional, mindestens eines muss ausgefüllt sein.',
+      'Angezeigt wird „Nummer – Bezeichnung“ (überall: Auswahl, Listen, Berichte, Export). Bestehende Projekte behalten ihren Namen als Bezeichnung.',
+      'Diktieren: Es genügt die Bezeichnung; wird die Projektnummer genannt, ist das Projekt sofort sicher erkannt.',
+      'SharePoint: ZE_Projekte bekommt die Spalten „Projektnummer“ und „Projektbezeichnung“ (legt ein Administrator beim ersten Öffnen an).'
+    ]
+  },
   {
     v: '1.18.0', date: '11.11.2026', title: 'Zeitraum-Kalender und gespeicherte Berichte für alle', items: [
       'Berichte → Filter → „Benutzerdefiniert“: Zeitraum im Kalender markieren (Anfang und Ende antippen, am PC auch ziehen; am PC zwei Monate nebeneinander) statt zwei Datumsfelder.',
