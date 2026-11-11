@@ -1387,7 +1387,7 @@ function projectTableHTML() {
   if (!list.length) return `<div class="empty"><p>${visibleProjects().length ? 'Keine passenden Projekte.' : canSeeAllProjects() ? 'Noch keine Projekte angelegt.' : 'Ihnen ist noch kein Projekt zugeordnet. Projekte ordnet Ihnen Ihr Projektleiter zu.'}</p></div>`;
   const money = canSeeRates(), cloud = cloudOn(), admin = role().admin;
   const teamNames = p => (p.memberIds || []).map(id => S.roles.find(r => r.id === id)?.name).filter(Boolean);
-  return `<div class="tbl-wrap"><table class="tbl">
+  return `<div class="tbl-wrap"><table class="tbl proj-tbl">
     <thead><tr><th>Name</th><th class="hide-mobile">Kunde</th>${cloud ? '<th class="hide-mobile">Projektleiter</th><th class="hide-mobile">Team</th>' : ''}<th class="num">${cloud ? 'Meine Zeit' : 'Erfasst'}</th>${money ? '<th class="num hide-mobile">Stundensatz</th>' : ''}<th></th></tr></thead>
     <tbody>${list.map(p => {
       const es = entryStore().filter(e => e.projectId === p.id), edit = canEditProject(p), team = cloud && canEditTeam(p), tn = teamNames(p);
@@ -1400,11 +1400,11 @@ function projectTableHTML() {
         <td class="num">${fmtDur(sum(es))}</td>
         ${money ? `<td class="num hide-mobile">${(projFuncs(p).some(x => x.rate > 0) || p.rate != null) ? [...(p.rate != null && !projFuncs(p).length ? [fmtMoney(Number(p.rate))] : []), ...projFuncs(p).filter(x => x.rate > 0).map(x => `<span class="muted small">${esc(funcName(x.id) || '?')}:</span> ${fmtMoney(x.rate)}`)].join('<br>') : p.billable ? '<span class="warn-text">fehlt</span>' : '<span class="muted">–</span>'}</td>` : ''}
         <td class="act">
-          ${open ? `<button class="icon-btn" data-action="open-project" data-id="${p.id}" title="Zeit eintragen">${ic('clock')}</button>` : ''}
-          ${team ? `<button class="icon-btn" data-action="edit-team" data-id="${p.id}" title="Team zuordnen">${ic('users')}</button>` : ''}
-          ${edit ? `<button class="icon-btn" data-action="edit-project" data-id="${p.id}" title="Bearbeiten">${ic('edit')}</button>
-          <button class="icon-btn" data-action="archive-project" data-id="${p.id}" title="${p.archived ? 'Projekt wieder öffnen' : 'Projekt abschließen (archivieren)'}">${ic(p.archived ? 'upload' : 'archive')}</button>` : ''}
-          ${admin || !cloud ? `<button class="icon-btn" data-action="delete-project" data-id="${p.id}" title="Löschen">${ic('trash')}</button>` : ''}
+          ${open ? `<button class="icon-btn" data-action="open-project" data-id="${p.id}" title="Zeit eintragen">${ic('clock')}<span class="lbl">Zeit</span></button>` : ''}
+          ${team ? `<button class="icon-btn" data-action="edit-team" data-id="${p.id}" title="Team zuordnen">${ic('users')}<span class="lbl">Team</span></button>` : ''}
+          ${edit ? `<button class="icon-btn" data-action="edit-project" data-id="${p.id}" title="Bearbeiten (Nummer, Bezeichnung, Stundensätze)">${ic('edit')}<span class="lbl">Bearbeiten</span></button>
+          <button class="icon-btn" data-action="archive-project" data-id="${p.id}" title="${p.archived ? 'Projekt wieder öffnen' : 'Projekt abschließen (archivieren)'}">${ic(p.archived ? 'upload' : 'archive')}<span class="lbl">${p.archived ? 'Öffnen' : 'Abschließen'}</span></button>` : ''}
+          ${admin || !cloud ? `<button class="icon-btn" data-action="delete-project" data-id="${p.id}" title="Löschen">${ic('trash')}<span class="lbl">Löschen</span></button>` : ''}
         </td></tr>`;
     }).join('')}</tbody></table></div>`;
 }

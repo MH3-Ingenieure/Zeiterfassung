@@ -9,6 +9,7 @@ Die gleiche Liste ist in der App unter **Einstellungen → Über diese App → �
 
 ## 1.20.0 – 12.11.2026 – Funktionen mit Stundensätzen je Projekt (Vertrag)
 - Ersetzt die einheitlichen Satzarten aus 1.19.0 (Liste `ZE_Satzarten` und Spalten `Rate2`–`Rate4`, `RateLevel`, `RateLevels` bleiben in SharePoint ungenutzt stehen und können gelöscht werden). `COLS_VERSION` und `PERM_VERSION` 4 (neue Spalten und Rechte für `ZE_Funktionen`).
+- Projektliste am Handy als Karten (`.proj-tbl`), Aktionsknöpfe mit Beschriftung.
 - Projekt umbenennen: `Cloud.projectRenamed` zieht die Spalte `ProjectName` in den Zeitenlisten (Projektliste und Sammelliste) per Graph-`$batch` nach, nur Administrator.
 - Rechte: `canSeeRates` nur Administrator und Buchhaltung; Projektleiter verlieren Lesezugriff auf `ZE_Stundensaetze` (Rechteabgleich `PERM_VERSION` 4), behalten die Team-Berichte ohne Beträge.
 - Funktionen: gemeinsame Liste `S.functions` (SharePoint `ZE_Funktionen`, Administrator und Buchhaltung schreiben, IDs `f01`…); je Projekt `funcs = [{id, rate}]` (höchstens `FUNC_MAX` = 6) als JSON in `ZE_Stundensaetze` (Spalte `Funcs`, neben `Rate` = Satz ohne Funktion), angebotene Funktionen `funcIds` in `ZE_Projekte` (Spalte `FuncIds`, auch für Mitarbeiter lesbar, ohne Beträge); je Eintrag `funcId` (Spalten `FuncId`, `FuncName` in den Zeitenlisten). Fehlen die neuen Spalten noch, werden leere Werte weggelassen (`withFallback`), damit Mitarbeiter nicht blockiert sind, bevor ein Administrator die App öffnet.

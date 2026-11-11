@@ -632,3 +632,35 @@ table.tbl { width: 100%; border-collapse: collapse; }
 .ef-rate select, .dz-rate select { height: 36px; border: 1px solid var(--border); border-radius: 4px; padding: 0 8px; background: var(--surface); color: var(--text); }
 .rate-chip { background: rgba(3,169,244,.12); color: var(--accent-d); font-weight: 600; }
 @media (max-width: 760px) { .rate-grid { grid-template-columns: 1fr; } }
+
+/* ---------- 1.19: Funktionen je Projekt ---------- */
+.fn-rows { display: flex; flex-direction: column; gap: 8px; margin-bottom: 8px; }
+.fn-row { display: grid; grid-template-columns: 1fr 120px auto; gap: 8px; align-items: center; }
+.fn-row select, .fn-row input, .fn-set input, .fn-new input { height: 40px; border: 1px solid var(--border); border-radius: 4px; padding: 0 10px; background: var(--surface); color: var(--text); font-size: 15px; min-width: 0; }
+.fn-add .ic { width: 14px; height: 14px; }
+.fn-set { display: flex; gap: 8px; align-items: center; margin-bottom: 8px; }
+.fn-set input { flex: 1; }
+.fn-new { display: flex; gap: 8px; margin-top: 4px; }
+.fn-new input { flex: 1; }
+@media (max-width: 760px) { .fn-row { grid-template-columns: 1fr 96px auto; } }
+
+/* ---------- 1.20: Projektliste am Handy als Karten, Aktionen mit Beschriftung ---------- */
+.icon-btn .lbl { display: none; }
+@media (max-width: 760px) {
+  .proj-tbl, .proj-tbl tbody { display: block; }
+  .proj-tbl thead { display: none; }
+  .proj-tbl tr { display: grid; grid-template-columns: 1fr; gap: 6px; padding: 12px 14px; border-bottom: 1px solid var(--border); }
+  .proj-tbl tr:last-child { border-bottom: 0; }
+  .proj-tbl td { display: block; padding: 0; border: 0; text-align: left; }
+  .proj-tbl td.num { color: var(--muted-2); font-size: 13px; }
+  .proj-tbl td.num::before { content: "Meine Zeit: "; }
+  .proj-tbl td.act { width: auto; display: flex; flex-wrap: wrap; gap: 6px; }
+  .proj-tbl .act .icon-btn { width: auto; height: 36px; padding: 0 12px; gap: 6px; display: inline-flex; align-items: center; border: 1px solid var(--border); border-radius: 18px; background: var(--surface); }
+  .proj-tbl .act .icon-btn .lbl { display: inline; font-size: 13px; }
+  .proj-tbl .act .icon-btn .ic { width: 16px; height: 16px; }
+  .proj-tbl .name-cell { text-align: left; }
+}
+@media (max-width: 760px) {
+  .proj-tbl td.hide-mobile { display: none; }
+  .proj-tbl td.hide-mobile:nth-child(2) { display: block; color: var(--muted-2); font-size: 13px; }
+}
