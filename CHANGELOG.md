@@ -1,11 +1,14 @@
 # Zeiterfassung – Änderungsprotokoll
 
-Aktuelles Release: **1.20.0** vom 12.11.2026
+Aktuelles Release: **1.20.1** vom 13.11.2026
 
 Nummerierung: *Hauptversion.Funktion.Korrektur*. Neue Funktionen erhöhen die mittlere Zahl, reine Korrekturen die letzte.
 Die gleiche Liste ist in der App unter **Einstellungen → Über diese App → Änderungsprotokoll anzeigen** zu sehen (Quelle: `version.js`).
 
 ---
+
+## 1.20.1 – 13.11.2026 – Eingabefenster: Projektfeld ohne „ändern“
+- Das Wort „ändern“ neben dem gewählten Projekt im Eingabefenster entfällt (Pfeil statt Text). Geänderte Dateien: `app.js`, `styles.css`, `version.js`, `sw.js`, `CHANGELOG.md`
 
 ## 1.20.0 – 12.11.2026 – Funktionen mit Stundensätzen je Projekt (Vertrag)
 - Ersetzt die einheitlichen Satzarten aus 1.19.0 (Liste `ZE_Satzarten` und Spalten `Rate2`–`Rate4`, `RateLevel`, `RateLevels` bleiben in SharePoint ungenutzt stehen und können gelöscht werden). `COLS_VERSION` und `PERM_VERSION` 4 (neue Spalten und Rechte für `ZE_Funktionen`).

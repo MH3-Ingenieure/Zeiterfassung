@@ -157,7 +157,7 @@ main { min-width: 0; padding: 24px 28px 48px; }
 .ef-proj { display: flex; align-items: center; gap: 10px; min-height: 46px; padding: 0 12px; border: 1px solid var(--border); border-radius: 6px; background: var(--surface-2); text-align: left; font-size: 17px; }
 .ef-proj .proj { font-weight: 700; }
 .ef-proj:hover { border-color: var(--accent); }
-.ef-change { margin-left: auto; font-size: 12.5px; color: var(--accent); }
+.ef-change { margin-left: auto; font-size: 16px; color: var(--muted-2); }
 .ef-comment { width: 100%; border: 2px solid var(--strong) !important; border-radius: 6px; padding: 10px 12px; font: inherit; font-size: 15px; background: var(--surface); color: var(--text); resize: vertical; min-height: 64px; }
 .ef-comment:focus { outline: 2px solid var(--accent); outline-offset: 1px; }
 .ef-row { display: flex; flex-wrap: wrap; gap: 8px; align-items: flex-end; }

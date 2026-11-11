@@ -342,7 +342,7 @@ function timerBarHTML() {
       ${r ? '' : `<button class="btn small dz-btn ef-dict" data-action="dictate">${ic('mic')} diktieren</button>`}</div>
     <div class="ef-field">
       <span class="ef-label">Projekt</span>
-      <button class="ef-proj" data-action="pick-project" data-target="timer">${projLabel(d.projectId, 'Projekt wählen')}<span class="ef-change">${d.projectId ? 'ändern' : ''}</span></button>
+      <button class="ef-proj" data-action="pick-project" data-target="timer">${projLabel(d.projectId, 'Projekt wählen')}<span class="ef-change" aria-hidden="true">▾</span></button>
     </div>
     <label class="ef-field"><span class="ef-label">Kommentar – was wurde gemacht?</span>
       <textarea id="tb-desc" class="ef-comment" rows="2" maxlength="4000" placeholder="z. B. Begehung Heizraum mit Hausmeister, Mängel an Pumpe P2 aufgenommen">${esc(d.description)}</textarea></label>

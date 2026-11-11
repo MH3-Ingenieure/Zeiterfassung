@@ -5,10 +5,15 @@
    CHANGELOG.md und den Cache-Namen in sw.js mitziehen.
    Nummerierung: Hauptversion.Funktion.Korrektur (z. B. 1.9.1)
    ===================================================================== */
-const APP_VERSION = '1.20.0';
-const APP_RELEASE_DATE = '12.11.2026';
+const APP_VERSION = '1.20.1';
+const APP_RELEASE_DATE = '13.11.2026';
 
 const CHANGELOG = [
+  {
+    v: '1.20.1', date: '13.11.2026', title: 'Eingabefenster: Projektfeld ohne „ändern“', items: [
+      'Im Eingabefenster steht neben dem gewählten Projekt kein „ändern“ mehr, sondern ein kleiner Pfeil. Ein Tipp auf das Projektfeld öffnet wie bisher die Projektliste.'
+    ]
+  },
   {
     v: '1.20.0', date: '12.11.2026', title: 'Funktionen mit Stundensätzen je Projekt (Vertrag)', items: [
       'Ersetzt die einheitlichen Satzarten aus 1.19.0: Die Stundensätze gelten je Projekt, weil die Verträge unterschiedlich sind. Unter Einstellungen → Funktionen führen Administrator und Buchhaltung eine gemeinsame Liste (z. B. Junior Bauleiter, Bauleiter, Senior Bauleiter, Back Office, Projektleiter, Senior Projektleiter; „Vorschlag einsetzen“ trägt diese sechs ein).',
