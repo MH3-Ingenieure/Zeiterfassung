@@ -403,7 +403,12 @@ const Cloud = (() => {
       }
       case 'projects': { // Stundensatz kommt aus eigener Liste – lokal vorhandenen Wert behalten
         const old = new Map(S.projects.map(p => [p.id, p]));
-        S.projects = list.map(p => { const o = old.get(p.id); return { ...p, rate: p.rate !== undefined ? p.rate : (o?.rate ?? null), funcs: p.funcs !== undefined ? p.funcs : (o?.funcs ?? []) }; });
+        // Objekte bleiben dieselben (Werte werden hineingeschrieben): Ein gerade geöffneter Dialog (Projekt bearbeiten, Team) hält sonst
+        // ein veraltetes Objekt und „speichert“ ins Leere.
+        S.projects = list.map(p => {
+          const o = old.get(p.id), next = { ...p, rate: p.rate !== undefined ? p.rate : (o?.rate ?? null), funcs: p.funcs !== undefined ? p.funcs : (o?.funcs ?? []) };
+          return o ? Object.assign(o, next) : next;
+        });
         break;
       }
       case 'rates': {

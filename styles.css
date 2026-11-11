@@ -644,23 +644,20 @@ table.tbl { width: 100%; border-collapse: collapse; }
 .fn-new input { flex: 1; }
 @media (max-width: 760px) { .fn-row { grid-template-columns: 1fr 96px auto; } }
 
-/* ---------- 1.20: Projektliste am Handy als Karten, Aktionen mit Beschriftung ---------- */
-.icon-btn .lbl { display: none; }
+/* ---------- 1.20.2: Projektliste am Handy schlicht, Tipp öffnet die Karteikarte ---------- */
 @media (max-width: 760px) {
-  .proj-tbl, .proj-tbl tbody { display: block; }
-  .proj-tbl thead { display: none; }
-  .proj-tbl tr { display: grid; grid-template-columns: 1fr; gap: 6px; padding: 12px 14px; border-bottom: 1px solid var(--border); }
-  .proj-tbl tr:last-child { border-bottom: 0; }
-  .proj-tbl td { display: block; padding: 0; border: 0; text-align: left; }
-  .proj-tbl td.num { color: var(--muted-2); font-size: 13px; }
-  .proj-tbl td.num::before { content: "Meine Zeit: "; }
-  .proj-tbl td.act { width: auto; display: flex; flex-wrap: wrap; gap: 6px; }
-  .proj-tbl .act .icon-btn { width: auto; height: 36px; padding: 0 12px; gap: 6px; display: inline-flex; align-items: center; border: 1px solid var(--border); border-radius: 18px; background: var(--surface); }
-  .proj-tbl .act .icon-btn .lbl { display: inline; font-size: 13px; }
-  .proj-tbl .act .icon-btn .ic { width: 16px; height: 16px; }
-  .proj-tbl .name-cell { text-align: left; }
+  .proj-tbl td.act, .proj-tbl th:last-child { display: none; }
+  .proj-tbl tr[data-pid] { cursor: pointer; }
+  .proj-tbl tr[data-pid] td:first-child { display: flex; align-items: center; gap: 8px; }
+  .proj-tbl tr[data-pid] td:first-child .name-cell { flex: 1; min-width: 0; text-align: left; }
+  .proj-tbl tr[data-pid] td:first-child::after { content: "›"; flex: none; color: var(--muted); font-size: 22px; line-height: 1; }
 }
-@media (max-width: 760px) {
-  .proj-tbl td.hide-mobile { display: none; }
-  .proj-tbl td.hide-mobile:nth-child(2) { display: block; color: var(--muted-2); font-size: 13px; }
-}
+.pc-head { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-bottom: 4px; }
+.pc-dot { width: 12px; height: 12px; border-radius: 50%; flex: none; }
+.pc-list { margin: 10px -24px 14px; border-top: 1px solid var(--border); }
+.pc-row { display: flex; justify-content: space-between; gap: 16px; padding: 10px 24px; border-bottom: 1px solid var(--border); font-size: 14.5px; }
+.pc-row span:first-child { color: var(--muted-2); flex: none; }
+.pc-row span:last-child { text-align: right; font-weight: 500; }
+.pc-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.pc-actions .btn { justify-content: center; }
+.pc-actions .btn.wide { grid-column: 1 / -1; }

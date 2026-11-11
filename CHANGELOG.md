@@ -1,11 +1,20 @@
 # Zeiterfassung – Änderungsprotokoll
 
-Aktuelles Release: **1.20.1** vom 13.11.2026
+Aktuelles Release: **1.20.3** vom 14.11.2026
 
 Nummerierung: *Hauptversion.Funktion.Korrektur*. Neue Funktionen erhöhen die mittlere Zahl, reine Korrekturen die letzte.
 Die gleiche Liste ist in der App unter **Einstellungen → Über diese App → Änderungsprotokoll anzeigen** zu sehen (Quelle: `version.js`).
 
 ---
+
+## 1.20.3 – 14.11.2026 – Projektnummer wird zuverlässig gespeichert
+- Fehler: Speichern im Projektdialog (und im Team-Dialog) wirkte auf ein veraltetes Projektobjekt, wenn der Hintergrund-Abgleich (`applyRecords('projects')`) das Projekt seit dem Öffnen ersetzt hatte → Toast „gespeichert“, aber keine Änderung. Jetzt wird beim Speichern das aktuelle Projekt nachgeschlagen, und der Abgleich aktualisiert vorhandene Projektobjekte an Ort und Stelle.
+- Geänderte Dateien: `app.js`, `cloud.js`, `version.js`, `sw.js`, `CHANGELOG.md`
+
+## 1.20.2 – 13.11.2026 – Projektliste am Handy: Tipp öffnet die Karteikarte
+- Handy: schlichte Liste, Tipp → Karteikarte (`openProjectCard`) mit Projektnummer/-bezeichnung, Kunde, Projektleiter, Team, Zeit, Stundensätze (nur Administrator/Buchhaltung) und den Aktionen; nur „Zeit“ möglich → direkt zur Zeiterfassung. Die Kartenansicht der Liste aus 1.20.0/1.20.1 entfällt.
+- Projektdialog: Hinweis oben bei abrechenbarem Projekt ohne Stundensatz; Fehlermeldungen scrollen ins Bild.
+- Geänderte Dateien: `app.js`, `styles.css`, `version.js`, `sw.js`, `CHANGELOG.md`
 
 ## 1.20.1 – 13.11.2026 – Eingabefenster: Projektfeld ohne „ändern“
 - Das Wort „ändern“ neben dem gewählten Projekt im Eingabefenster entfällt (Pfeil statt Text). Geänderte Dateien: `app.js`, `styles.css`, `version.js`, `sw.js`, `CHANGELOG.md`

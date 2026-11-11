@@ -1392,7 +1392,7 @@ function projectTableHTML() {
     <tbody>${list.map(p => {
       const es = entryStore().filter(e => e.projectId === p.id), edit = canEditProject(p), team = cloud && canEditTeam(p), tn = teamNames(p);
       const open = canTrack() && !p.archived; // Klick auf den Namen → Zeiterfassung für dieses Projekt
-      return `<tr class="${p.archived ? 'archived' : ''}">
+      return `<tr class="${p.archived ? 'archived' : ''}" data-pid="${p.id}">
         <td><button class="name-cell ${open ? 'name-open' : ''}" ${open ? `data-action="open-project" data-id="${p.id}" title="Zeit für dieses Projekt eintragen"` : edit ? `data-action="edit-project" data-id="${p.id}"` : ''}><span class="dot" style="background:${p.color}"></span>${esc(p.name)}${p.archived ? ` <span class="chip lock-chip">${ic('lock')} abgeschlossen</span>` : ''}${money && p.billable && !(Number(p.rate) > 0 || projFuncs(p).some(x => x.rate > 0)) ? ' <span class="chip warn">Stundensatz fehlt</span>' : ''}${cloud && admin && !p.listId ? ' <span class="chip">Rechte ausstehend</span>' : ''}</button></td>
         <td class="hide-mobile">${esc(client(p.clientId)?.name || '–')}</td>
         ${cloud ? `<td class="hide-mobile">${p.leadName ? esc(p.leadName) : '<span class="warn-text">fehlt</span>'}</td>
@@ -1400,13 +1400,50 @@ function projectTableHTML() {
         <td class="num">${fmtDur(sum(es))}</td>
         ${money ? `<td class="num hide-mobile">${(projFuncs(p).some(x => x.rate > 0) || p.rate != null) ? [...(p.rate != null && !projFuncs(p).length ? [fmtMoney(Number(p.rate))] : []), ...projFuncs(p).filter(x => x.rate > 0).map(x => `<span class="muted small">${esc(funcName(x.id) || '?')}:</span> ${fmtMoney(x.rate)}`)].join('<br>') : p.billable ? '<span class="warn-text">fehlt</span>' : '<span class="muted">–</span>'}</td>` : ''}
         <td class="act">
-          ${open ? `<button class="icon-btn" data-action="open-project" data-id="${p.id}" title="Zeit eintragen">${ic('clock')}<span class="lbl">Zeit</span></button>` : ''}
-          ${team ? `<button class="icon-btn" data-action="edit-team" data-id="${p.id}" title="Team zuordnen">${ic('users')}<span class="lbl">Team</span></button>` : ''}
-          ${edit ? `<button class="icon-btn" data-action="edit-project" data-id="${p.id}" title="Bearbeiten (Nummer, Bezeichnung, Stundensätze)">${ic('edit')}<span class="lbl">Bearbeiten</span></button>
-          <button class="icon-btn" data-action="archive-project" data-id="${p.id}" title="${p.archived ? 'Projekt wieder öffnen' : 'Projekt abschließen (archivieren)'}">${ic(p.archived ? 'upload' : 'archive')}<span class="lbl">${p.archived ? 'Öffnen' : 'Abschließen'}</span></button>` : ''}
-          ${admin || !cloud ? `<button class="icon-btn" data-action="delete-project" data-id="${p.id}" title="Löschen">${ic('trash')}<span class="lbl">Löschen</span></button>` : ''}
+          ${open ? `<button class="icon-btn" data-action="open-project" data-id="${p.id}" title="Zeit eintragen">${ic('clock')}</button>` : ''}
+          ${team ? `<button class="icon-btn" data-action="edit-team" data-id="${p.id}" title="Team zuordnen">${ic('users')}</button>` : ''}
+          ${edit ? `<button class="icon-btn" data-action="edit-project" data-id="${p.id}" title="Bearbeiten (Nummer, Bezeichnung, Stundensätze)">${ic('edit')}</button>
+          <button class="icon-btn" data-action="archive-project" data-id="${p.id}" title="${p.archived ? 'Projekt wieder öffnen' : 'Projekt abschließen (archivieren)'}">${ic(p.archived ? 'upload' : 'archive')}</button>` : ''}
+          ${admin || !cloud ? `<button class="icon-btn" data-action="delete-project" data-id="${p.id}" title="Löschen">${ic('trash')}</button>` : ''}
         </td></tr>`;
     }).join('')}</tbody></table></div>`;
+}
+
+// Karteikarte eines Projekts (Handy): Tipp auf ein Projekt in der Liste zeigt Nummer, Bezeichnung, Kunde … und die möglichen Aktionen
+const isPhone = () => matchMedia('(max-width: 760px)').matches;
+function openProjectCard(id) {
+  const p = proj(id);
+  if (!p) return;
+  const cloud = cloudOn(), admin = role().admin, money = canSeeRates();
+  const open = canTrack() && !p.archived, edit = canEditProject(p), team = cloud && canEditTeam(p), del = admin || !cloud;
+  if (open && !edit && !team && !del) return ACTIONS['open-project']({ dataset: { id } }); // z. B. Mitarbeiter: gleich zur Zeiterfassung
+  const c = client(p.clientId), tn = (p.memberIds || []).map(i => S.roles.find(r => r.id === i)?.name).filter(Boolean), es = entryStore().filter(e => e.projectId === p.id);
+  const row = (k, v) => v ? `<div class="pc-row"><span>${k}</span><span>${v}</span></div>` : '';
+  const rates = money ? ((projFuncs(p).some(x => x.rate > 0) || p.rate != null)
+    ? [...(p.rate != null && !projFuncs(p).length ? [fmtMoney(Number(p.rate))] : []), ...projFuncs(p).filter(x => x.rate > 0).map(x => `${esc(funcName(x.id) || '?')}: ${fmtMoney(x.rate)}`)].join('<br>')
+    : (p.billable ? '<span class="warn-text">fehlt</span>' : '')) : '';
+  openModal(`<div class="pc-head"><span class="pc-dot" style="background:${p.color}"></span><h2 style="margin:0">${esc(p.name)}</h2>${p.archived ? ` <span class="chip lock-chip">${ic('lock')} abgeschlossen</span>` : ''}</div>
+    <div class="pc-list">
+      ${row('Projektnummer', p.number ? esc(p.number) : '<span class="muted">–</span>')}
+      ${row('Projektbezeichnung', projTitle(p) ? esc(projTitle(p)) : '<span class="muted">–</span>')}
+      ${row('Kunde', c ? esc(c.name) : '<span class="muted">–</span>')}
+      ${cloud ? row('Projektleiter', p.leadName ? esc(p.leadName) : '<span class="warn-text">fehlt</span>') : ''}
+      ${cloud ? row('Team', tn.length ? tn.length + (tn.length === 1 ? ' Person' : ' Personen') : '<span class="muted">–</span>') : ''}
+      ${row(cloud ? 'Meine Zeit' : 'Erfasst', fmtDur(sum(es)))}
+      ${row('Abrechenbar', p.billable ? 'ja' : 'nein')}
+      ${rates ? row('Stundensätze', rates) : ''}
+    </div>
+    <div class="pc-actions">
+      ${open ? `<button class="btn primary wide" data-action="open-project" data-id="${p.id}">${ic('clock')} Zeit eintragen</button>` : ''}
+      ${team ? `<button class="btn ghost" data-action="edit-team" data-id="${p.id}">${ic('users')} Team</button>` : ''}
+      ${edit ? `<button class="btn ghost" data-action="edit-project" data-id="${p.id}">${ic('edit')} Bearbeiten</button>
+        <button class="btn ghost" data-action="archive-project" data-id="${p.id}">${ic(p.archived ? 'upload' : 'archive')} ${p.archived ? 'Wieder öffnen' : 'Abschließen'}</button>` : ''}
+      ${del ? `<button class="btn danger-ghost" data-action="delete-project" data-id="${p.id}">${ic('trash')} Löschen</button>` : ''}
+    </div>
+    <div class="modal-actions"><span class="grow"></span><button class="btn ghost" data-action="close-modal">Schließen</button></div>`, m => {
+    // erst schließen, dann die gewählte Aktion ausführen (die globale Aktion läuft danach)
+    m.addEventListener('click', ev => { const b = ev.target.closest('[data-action]'); if (b && b.dataset.action !== 'close-modal') closeModal(); });
+  });
 }
 
 // Team eines Projekts: Projektleiter (seine Projekte) und Administratoren ordnen Mitarbeiter zu
@@ -1428,8 +1465,10 @@ function openTeamModal(id) {
       $$('[data-name]', m).forEach(l => { l.hidden = t && !l.dataset.name.includes(t); });
     });
     $('#tm-save', m).addEventListener('click', () => {
-      p.memberIds = $$('[data-uid]', m).filter(c => c.checked).map(c => c.dataset.uid).sort();
-      save(); closeModal(); render(); toast(`Team gespeichert (${p.memberIds.length} ${p.memberIds.length === 1 ? 'Person' : 'Personen'})`);
+      const cur = proj(id); // aktuelles Objekt (der Abgleich kann es seit dem Öffnen ersetzt haben)
+      if (!cur) { closeModal(); return toast('Dieses Projekt gibt es nicht mehr'); }
+      cur.memberIds = $$('[data-uid]', m).filter(c => c.checked).map(c => c.dataset.uid).sort();
+      save(); closeModal(); render(); toast(`Team gespeichert (${cur.memberIds.length} ${cur.memberIds.length === 1 ? 'Person' : 'Personen'})`);
     });
   });
 }
@@ -1450,7 +1489,11 @@ function openProjectModal(id, opts = {}) {
         ${leads.map(r => `<option value="${r.id}" ${r.id === d.leadId ? 'selected' : ''}>${esc(r.name)}</option>`).join('')}</select></label>
        ${leads.length ? '' : '<p class="muted" style="margin-top:-8px">Noch niemand hat die Rolle Projektleiter (Benutzer & Rollen).</p>'}`
     : `<div class="field"><span>Projektleiter</span><div class="select-btn">${d.leadName ? esc(d.leadName) : '<span class="muted">wird vom Administrator zugeordnet</span>'}</div></div>`;
-  openModal(`<h2>${p ? 'Projekt bearbeiten' : 'Neues Projekt'}</h2><form id="pf" novalidate>
+  // Abrechenbares Projekt ohne Stundensatz (älterer Stand): vorab erklären, warum das Speichern sonst nicht klappt
+  const noRate = p && d.billable && !(Number(d.rate) > 0 || projFuncs(d).some(x => x.rate > 0));
+  openModal(`<h2>${p ? 'Projekt bearbeiten' : 'Neues Projekt'}</h2>
+    ${noRate ? `<div class="form-error" style="margin:-6px 0 12px">Für dieses abrechenbare Projekt ist noch kein <b>Stundensatz</b> eingetragen. Bitte unten den Stundensatz${funcList().length ? ' (Funktion hinzufügen) ' : ' '}eintragen, danach lässt sich das Projekt speichern – oder „abrechenbar“ abwählen.</div>` : ''}
+    <form id="pf" novalidate>
     <div class="row2">
       <label class="field"><span>Projektnummer <span class="muted">(optional)</span></span><input name="pnumber" value="${esc(d.number)}" placeholder="z. B. 2026-014" autocomplete="off"></label>
       <label class="field"><span>Projektbezeichnung <span class="muted">(optional)</span></span><input name="pname" value="${esc(d.title)}" placeholder="z. B. Umbau Umkleiden" autocomplete="off"></label>
@@ -1503,7 +1546,7 @@ function openProjectModal(id, opts = {}) {
     el.pnumber.addEventListener('input', pv); el.pname.addEventListener('input', pv); pv();
     // Entwurf eines darunterliegenden Zeiteintrag-Dialogs erhalten
     const close = () => { const draft = UI.modalDraft; closeModal(); UI.modalDraft = draft; };
-    const fail = (msg, input) => { err.textContent = msg; err.hidden = false; input.focus(); };
+    const fail = (msg, input) => { err.textContent = msg; err.hidden = false; err.scrollIntoView({ block: 'center' }); input?.focus(); };
     $('#pf-cancel', m).addEventListener('click', () => { close(); opts.onCancel?.(); });
     f.addEventListener('submit', ev => {
       ev.preventDefault();
@@ -1530,11 +1573,14 @@ function openProjectModal(id, opts = {}) {
       if (bad >= 0) return fail('Bitte einen gültigen Stundensatz eingeben.', box.querySelectorAll('.fn-row input')[bad]);
       if (vals.rate != null && (isNaN(vals.rate) || vals.rate < 0)) return fail('Bitte einen gültigen Stundensatz eingeben.', el.rate);
       if (vals.billable && !(vals.rate > 0 || vals.funcIds.length)) return fail('Für abrechenbare Projekte ist mindestens ein Stundensatz Pflicht. Bitte eintragen oder „abrechenbar“ abwählen.', firstRate);
+      // Das Projekt erst jetzt nachschlagen: Der Hintergrund-Abgleich kann es seit dem Öffnen des Dialogs ersetzt haben
+      const cur = p ? proj(p.id) : null;
+      if (p && !cur) { close(); return toast('Dieses Projekt gibt es nicht mehr – bitte Liste neu laden'); }
       let pid = p?.id;
-      const renamed = p && p.name !== vals.name;
-      if (p) Object.assign(p, vals); else { pid = uid(); S.projects.push({ id: pid, archived: false, ...vals }); }
+      const renamed = cur && cur.name !== vals.name;
+      if (cur) Object.assign(cur, vals); else { pid = uid(); S.projects.push({ id: pid, archived: false, ...vals }); }
       save(); close();
-      if (renamed) window.Cloud?.projectRenamed?.(p); // Projektname auch in den erfassten Zeiten in SharePoint nachziehen
+      if (renamed) window.Cloud?.projectRenamed?.(cur); // Projektname auch in den erfassten Zeiten in SharePoint nachziehen
       if (opts.onSaved) opts.onSaved(pid); else render();
       toast(p ? 'Projekt gespeichert' : 'Projekt angelegt');
     });
@@ -1965,6 +2011,9 @@ const ACTIONS = {
 };
 
 document.addEventListener('click', ev => {
+  // Handy: Tipp auf ein Projekt in der Liste → Karteikarte (die Aktionsspalte ist dort ausgeblendet)
+  const prow = isPhone() && ev.target.closest('.proj-tbl tr[data-pid]');
+  if (prow && !ev.target.closest('.act')) { ev.preventDefault(); openProjectCard(prow.dataset.pid); return; }
   const el = ev.target.closest('[data-action]');
   if (el && ACTIONS[el.dataset.action]) { ev.preventDefault(); ACTIONS[el.dataset.action](el); return; }
   if (ev.target.closest('.sidebar a')) document.body.classList.remove('nav-open');

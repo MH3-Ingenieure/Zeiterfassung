@@ -5,10 +5,24 @@
    CHANGELOG.md und den Cache-Namen in sw.js mitziehen.
    Nummerierung: Hauptversion.Funktion.Korrektur (z. B. 1.9.1)
    ===================================================================== */
-const APP_VERSION = '1.20.1';
-const APP_RELEASE_DATE = '13.11.2026';
+const APP_VERSION = '1.20.3';
+const APP_RELEASE_DATE = '14.11.2026';
 
 const CHANGELOG = [
+  {
+    v: '1.20.3', date: '14.11.2026', title: 'Projektnummer wird zuverlässig gespeichert', items: [
+      'Behoben: Bei manchen Projekten wurde die Projektnummer (oder eine andere Änderung) nicht übernommen, obwohl „Projekt gespeichert“ erschien. Ursache: Während der Dialog offen war, hatte der automatische Abgleich mit SharePoint das Projekt ersetzt, und die Änderung ging ins Leere.',
+      'Dasselbe wurde beim Speichern des Teams abgesichert.'
+    ]
+  },
+  {
+    v: '1.20.2', date: '13.11.2026', title: 'Projektliste am Handy: Tipp öffnet die Karteikarte', items: [
+      'Die Projektliste am iPhone ist wieder eine schlichte Liste (Name und Zeit, Pfeil am Rand). Ein Tipp auf ein Projekt öffnet die Karteikarte mit Projektnummer, Projektbezeichnung, Kunde, Projektleiter, Team, Zeit, abrechenbar und (für Administrator und Buchhaltung) den Stundensätzen.',
+      'In der Karteikarte stehen die Aktionen: Zeit eintragen, Team, Bearbeiten, Abschließen/Wieder öffnen, Löschen – je nach Berechtigung. Mitarbeiter, die nur Zeit eintragen können, kommen mit einem Tipp direkt zur Zeiterfassung.',
+      'Am PC bleibt die Tabelle mit den Symbolen.',
+      'Projekt bearbeiten: Fehlt bei einem abrechenbaren Projekt noch der Stundensatz, steht oben im Dialog ein Hinweis, warum das Speichern (z. B. einer Projektnummer) sonst nicht klappt; Fehlermeldungen springen ins Bild.'
+    ]
+  },
   {
     v: '1.20.1', date: '13.11.2026', title: 'Eingabefenster: Projektfeld ohne „ändern“', items: [
       'Im Eingabefenster steht neben dem gewählten Projekt kein „ändern“ mehr, sondern ein kleiner Pfeil. Ein Tipp auf das Projektfeld öffnet wie bisher die Projektliste.'
