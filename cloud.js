@@ -806,7 +806,27 @@ const Cloud = (() => {
     return warnings;
   }
 
-/* ---------- Team-Auswertung (alle sichtbaren Zeiten) ---------- */
+/* ---------- Projekt umbenannt: Projektname in den bereits erfassten Zeiten nachziehen (nur Administratoren) ----------
+     Die App zeigt den Namen immer live aus dem Projekt; die Spalte „Projekt“ in den SharePoint-Listen soll aber ebenfalls stimmen. */
+  async function projectRenamed(p) {
+    if (!enabled || !account || !myRole().admin || !p?.id) return;
+    try {
+      const ids = await ensureLists();
+      for (const lid of [...new Set([p.listId, ids.entries].filter(Boolean))]) {
+        let items;
+        try { items = await getAll(`/sites/${ids.siteId}/lists/${lid}/items?$expand=fields&$top=500`); }
+        catch (e) { if (e.status === 403 || e.status === 404) continue; throw e; }
+        const todo = items.filter(it => it.fields?.ProjectAppId === p.id && it.fields.ProjectName !== p.name);
+        for (let i = 0; i < todo.length; i += 20) { // Graph-Sammelanfrage: bis zu 20 Änderungen je Aufruf
+          const requests = todo.slice(i, i + 20).map((it, n) => ({ id: String(n + 1), method: 'PATCH', url: `/sites/${ids.siteId}/lists/${lid}/items/${it.id}/fields`, headers: { 'Content-Type': 'application/json' }, body: { ProjectName: p.name } }));
+          const res = await g('/$batch', { method: 'POST', body: { requests } });
+          if ((res?.responses || []).some(r => r.status >= 300)) console.warn('Einzelne Zeiten nicht aktualisiert', res.responses.filter(r => r.status >= 300));
+        }
+      }
+    } catch (e) { console.warn('Projektname in den Zeiten nicht aktualisiert', e); }
+  }
+
+  /* ---------- Team-Auswertung (alle sichtbaren Zeiten) ---------- */
   function teamEntries(from, to) {
     const key = from + '-' + to;
     if (team.key !== key) { team = { key, status: 'loading', list: [] }; loadTeam(from, to, key); }
@@ -859,6 +879,7 @@ const Cloud = (() => {
     signedIn: () => enabled && !!account,
     inTeams: () => teamsMode,
     repaint: () => paint(),
+    projectRenamed,
     loadEntriesFor, syncEntriesFor,
     token: scopes => getToken(scopes), // z. B. für den Sprachdienst (Diktieren)
     config: () => ({ ...cfg }),

@@ -14,6 +14,7 @@ const CHANGELOG = [
       'Ersetzt die einheitlichen Satzarten aus 1.19.0: Die Stundensätze gelten je Projekt, weil die Verträge unterschiedlich sind. Unter Einstellungen → Funktionen führen Administrator und Buchhaltung eine gemeinsame Liste (z. B. Junior Bauleiter, Bauleiter, Senior Bauleiter, Back Office, Projektleiter, Senior Projektleiter; „Vorschlag einsetzen“ trägt diese sechs ein).',
       'Beim Projekt werden die vertraglich vereinbarten Funktionen mit je einem Stundensatz eingetragen (höchstens 6, jede Funktion einmal).',
       'Beim Eintragen einer Zeit wird die Funktion gewählt (auch im Bearbeiten-Dialog und beim Diktieren: „… als Bauleiter“); die zuletzt gewählte bleibt vorbelegt. Berichte und Export rechnen mit dem Satz der Funktion und können nach Funktion aufschlüsseln.',
+      'Projektnummer und Projektbezeichnung lassen sich jederzeit ändern (Projektliste → Stift-Symbol, Administrator und Buchhaltung). Beim Umbenennen wird der Projektname auch in den bereits erfassten Zeiten in SharePoint nachgezogen.',
       'Stundensätze und Beträge sehen nur noch Administrator und Buchhaltung. Projektleiter sehen weiter die Zeiten ihres Teams auf den eigenen Projekten, aber ohne Sätze und Beträge (auch in SharePoint ist die Sätze-Liste für sie gesperrt). Mitarbeiter sehen nur eigene Zeiten ohne Beträge.',
       'Ohne Funktionen bleibt es bei einem Stundensatz je Projekt; bestehende Einträge und Projekte bleiben unverändert. In 1.19.0 probeweise eingetragene Satzarten und Sätze entfallen (bitte neu eintragen).'
     ]

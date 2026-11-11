@@ -1531,8 +1531,10 @@ function openProjectModal(id, opts = {}) {
       if (vals.rate != null && (isNaN(vals.rate) || vals.rate < 0)) return fail('Bitte einen gültigen Stundensatz eingeben.', el.rate);
       if (vals.billable && !(vals.rate > 0 || vals.funcIds.length)) return fail('Für abrechenbare Projekte ist mindestens ein Stundensatz Pflicht. Bitte eintragen oder „abrechenbar“ abwählen.', firstRate);
       let pid = p?.id;
+      const renamed = p && p.name !== vals.name;
       if (p) Object.assign(p, vals); else { pid = uid(); S.projects.push({ id: pid, archived: false, ...vals }); }
       save(); close();
+      if (renamed) window.Cloud?.projectRenamed?.(p); // Projektname auch in den erfassten Zeiten in SharePoint nachziehen
       if (opts.onSaved) opts.onSaved(pid); else render();
       toast(p ? 'Projekt gespeichert' : 'Projekt angelegt');
     });
