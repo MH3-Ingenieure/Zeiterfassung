@@ -622,7 +622,7 @@ const Cloud = (() => {
     S.projects.map(p => [p.id, p.leadId || '', p.listId || '', !!p.archived]).sort()
   ]);
   const COLS_VERSION = 4; // erhöhen, wenn Zeitenlisten neue Spalten bekommen (4: Funktion je Eintrag; 3 war die Satzart-Variante)
-  const PERM_VERSION = 4; // erhöhen, wenn neue Listen Rechte brauchen (2: ZE_Berichte, 4: ZE_Funktionen)
+  const PERM_VERSION = 4; // erhöhen, wenn neue Listen Rechte brauchen (2: ZE_Berichte, 4: ZE_Funktionen, Stundensätze nur Buchhaltung)
   function maybeReconcile() {
     const pending = S.projects.some(p => !p.listId) || S.sync.permApplied !== permSignature() || S.sync.colsV !== COLS_VERSION || S.sync.permV !== PERM_VERSION;
     if (pending && !perm.running && !perm.error) reconcile();
@@ -703,7 +703,7 @@ const Cloud = (() => {
         { id: ids.clients, assign: plan(r => (has(r, 'bh') ? RD.contribute : RD.read)) },
         { id: ids.tags, assign: plan(() => RD.read) }, // Tags pflegt nur der Administrator
         { id: ids.roles, assign: plan(() => RD.read) },
-        { id: ids.rates, assign: plan(r => (has(r, 'bh') ? RD.contribute : has(r, 'pl') ? RD.read : null)) },
+        { id: ids.rates, assign: plan(r => (has(r, 'bh') ? RD.contribute : null)) }, // Stundensätze: nur Administrator (Besitzer) und Buchhaltung
         { id: ids.reports, reports: true, assign: plan(() => RD.contribute) }, // alle lesen, jeder bearbeitet nur seine eigenen
         { id: ids.functions, assign: plan(r => (has(r, 'bh') ? RD.contribute : RD.read)) } // Funktionen pflegen Administrator und Buchhaltung
       ].filter(l => l.id);

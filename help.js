@@ -67,7 +67,7 @@ const HELP = [
       <li><b>Bericht speichern:</b> Oben in der Leiste <b>„Gespeicherte Berichte“</b> auf <b>„+ Aktuellen Bericht speichern“</b> tippen und einen Namen vergeben, z. B. „Letzten Monat – alle Mitarbeiter“. Ein Tipp auf den Namen stellt Zeitraum und alle Filter wieder ein. „Letzten Monat“ bezieht sich dabei immer auf den heutigen Tag. Administratoren, Projektleitung und Buchhaltung können einen Bericht <b>für alle sichtbar</b> machen. Umbenennen, freigeben oder löschen unter <b>„Verwalten“</b>. Die Berichte stehen auf allen Geräten zur Verfügung.</li>
       <li><b>Exportieren</b> (oben rechts): <b>Als PDF speichern</b> (Druckdialog → „Als PDF speichern“, mit MH3-Firmenkopf), <b>Als CSV speichern</b> oder <b>Als Excel speichern</b> (.xlsx; Stunden und Beträge als Zahlen, mit Filterzeile).</li>
     </ol>
-    <p>Mitarbeiter sehen nur ihre eigenen Zeiten und keine Beträge. Projektleiter, Buchhaltung und Administratoren haben zusätzlich die Team-Auswertung (siehe unten).</p>`
+    <p>Mitarbeiter sehen nur ihre eigenen Zeiten, ohne Stundensätze und Beträge. Projektleiter sehen zusätzlich die Zeiten ihres Teams auf den eigenen Projekten, ebenfalls ohne Beträge. Alle Zeiten mit Stundensätzen und Beträgen sehen nur Buchhaltung und Administratoren (Team-Auswertung, siehe unten).</p>`
   },
   {
     roles: 'all', title: 'Offline arbeiten und Wolken-Symbol', body: `
@@ -165,7 +165,7 @@ const HELP = [
     roles: ['admin'], title: 'Administration: Benutzer & Rollen', body: `
     <ol>
       <li>Links auf <b>Benutzer & Rollen</b> → <b>BENUTZER HINZUFÜGEN</b> → Namen eintippen → Person aus Microsoft 365 wählen (erhält zunächst „Mitarbeiter“).</li>
-      <li>Rollen per Häkchen: <b>Administrator</b> (alles, ordnet Projektleiter zu), <b>Projektleiter</b> (seine Projekte, ordnet Mitarbeiter zu, Team-Auswertung), <b>Mitarbeiter</b> (zugeordnete Projekte, eigene Zeiten), <b>Buchhaltung</b> (legt Projekte an, sieht alles mit Beträgen).</li>
+      <li>Rollen per Häkchen: <b>Administrator</b> (alles, ordnet Projektleiter zu), <b>Projektleiter</b> (seine Projekte, ordnet Mitarbeiter zu, Team-Auswertung ohne Beträge), <b>Mitarbeiter</b> (zugeordnete Projekte, eigene Zeiten), <b>Buchhaltung</b> (legt Projekte an, sieht alles mit Beträgen).</li>
       <li>Die App setzt die Rechte in SharePoint automatisch; oben steht dann „Rechte aktuell“. Sofort anstoßen mit <b>„Rechte jetzt abgleichen“</b>.</li>
       <li><b>Austritt:</b> „Aktiv“ abwählen – der Zugriff wird entzogen, die Zeiten bleiben erhalten. Bei Projektleitern einen Nachfolger im Projekt eintragen.</li>
     </ol>

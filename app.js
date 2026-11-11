@@ -14,7 +14,7 @@ const HOUR = 3600000, DAY = 86400000;
 function defaultState() {
   return {
     settings: { userName: '', currency: 'EUR', defaultRate: 0, weekStart: 1, durationFormat: 'hms', trackMode: 'manual', modeV2: true },
-    clients: [], projects: [], tags: [], entries: [], running: null, roles: [], reports: [], ratekinds: []
+    clients: [], projects: [], tags: [], entries: [], running: null, roles: [], reports: [], functions: []
   };
 }
 function load() {
@@ -52,7 +52,7 @@ const UI = {
   report: { range: 'week', offset: 0, from: '', to: '', groupBy: 'project', userIds: [], clientIds: [], projectIds: [], tagIds: [], billOnly: false, q: '' },
   userQ: '', userSeg: 'all'
 };
-function emptyDraft() { return { description: '', projectId: null, tagIds: [], billable: false, rateLevel: 0 }; }
+function emptyDraft() { return { description: '', projectId: null, tagIds: [], billable: false, funcId: '' }; }
 
 /* ---------- Hilfsfunktionen ---------- */
 const $ = (s, r = document) => r.querySelector(s);
@@ -123,31 +123,35 @@ function hashColor(str) {
 const proj = id => S.projects.find(p => p.id === id);
 const client = id => S.clients.find(c => c.id === id);
 const tag = id => S.tags.find(t => t.id === id);
-/* Stundensätze: bis zu 4 Satzarten (z. B. Senior Bauleiter, Bauleiter, BackOffice), Bezeichnungen einheitlich (S.ratekinds,
-   id '1'…'4'); je Projekt ein Satz je Satzart (p.rate = Satzart 1, p.rate2 … p.rate4); je Eintrag gewählte Satzart: e.rateLevel (0–3). */
-const RATE_KEYS = ['rate', 'rate2', 'rate3', 'rate4'];
-const rateKinds = () => [...(S.ratekinds || [])].filter(k => ['1', '2', '3', '4'].includes(k.id) && k.name).sort((a, b) => a.id - b.id);
-const kindName = i => rateKinds().find(k => k.id === String(i + 1))?.name || `Satz ${i + 1}`;
-const projRates = p => RATE_KEYS.map(k => (p?.[k] == null || p[k] === '' || isNaN(Number(p[k])) ? null : Number(p[k])));
-// angebotene Satzarten eines Projekts: aus den Sätzen (Buchhaltung/Admin) bzw. aus p.levels (für Mitarbeiter ohne Einsicht in Beträge)
-const projLevels = p => { const l = projRates(p).map((v, i) => (v > 0 ? i : -1)).filter(i => i >= 0); return l.length ? l : (p?.levels || []); };
-const levelChoices = p => (rateKinds().length ? projLevels(p) : []);        // nur wenn Satzarten eingerichtet sind
-const defaultLevel = p => { const l = levelChoices(p), last = S.settings.lastRateLevel; return l.includes(last) ? last : (l[0] ?? 0); };
+/* Stundensätze je Projekt (unterschiedliche Verträge): Ein Projekt hat bis zu FUNC_MAX vertraglich vereinbarte Funktionen mit je einem
+   Stundensatz (p.funcs = [{id, rate}]). Die Funktionen stammen aus einer gemeinsamen Liste (S.functions = [{id, name}], z. B. Junior Bauleiter,
+   Bauleiter, Senior Bauleiter, Back Office, Projektleiter, Senior Projektleiter). Je Eintrag wird die Funktion gewählt (e.funcId).
+   p.funcIds = angebotene Funktionen ohne Beträge (für Mitarbeiter lesbar). p.rate = Stundensatz ohne Funktion (Projekte vor 1.19). */
+const FUNC_MAX = 6;
+const funcList = () => [...(S.functions || [])].filter(f => f.name).sort((a, b) => (a.id < b.id ? -1 : 1));
+const funcName = id => (S.functions || []).find(f => f.id === id)?.name || '';
+const nextFuncId = () => 'f' + String(Math.max(0, ...(S.functions || []).map(f => parseInt(String(f.id).slice(1), 10) || 0)) + 1).padStart(2, '0');
+const projFuncs = p => (p?.funcs || []).filter(x => x && x.id).map(x => ({ id: x.id, rate: x.rate == null || x.rate === '' ? null : Number(x.rate) }));
+const projFuncIds = p => { const l = projFuncs(p).filter(x => x.rate > 0).map(x => x.id); return l.length ? l : (p?.funcIds || []); };
+const funcChoices = p => projFuncIds(p).filter(id => funcName(id));
+const defaultFunc = p => { const l = funcChoices(p); return l.includes(S.settings.lastFuncId) ? S.settings.lastFuncId : (l[0] || ''); };
 function rateOf(e) {
   const p = proj(e.projectId);
   if (!p) return 0;
-  const r = projRates(p), v = r[e.rateLevel || 0] ?? r.find(x => x != null);   // fehlt der gewählte Satz, gilt der erste vorhandene
-  return v != null ? v : 0;
+  const f = projFuncs(p).find(x => x.id === e.funcId);
+  if (f && f.rate > 0) return f.rate;                                              // Satz der gewählten Funktion
+  if (p.rate != null && p.rate !== '') return Number(p.rate);                      // Stundensatz ohne Funktion (bisherige Projekte/Einträge)
+  return projFuncs(p).find(x => x.rate > 0)?.rate || 0;
 }
-// Auswahl „Satzart“ für Eintrag/Entwurf – nur wenn das Projekt mehrere Satzarten hat und abrechenbar ist
+// Auswahl „Funktion“ für Eintrag/Entwurf – nur wenn das Projekt mehrere Funktionen hat und abrechenbar ist
 function rateSelectHTML(o, target, cls = 'ef-mini') {
-  const p = proj(o.projectId), l = p ? levelChoices(p) : [];
+  const p = proj(o.projectId), l = p ? funcChoices(p) : [];
   if (l.length < 2 || !o.billable) return '';
-  const cur = l.includes(o.rateLevel) ? o.rateLevel : defaultLevel(p);
-  return `<label class="${cls}"><span>Satzart</span><select data-change="rate-level" data-target="${target}">${l.map(i => `<option value="${i}" ${i === cur ? 'selected' : ''}>${esc(kindName(i))}</option>`).join('')}</select></label>`;
+  const cur = l.includes(o.funcId) ? o.funcId : defaultFunc(p);
+  return `<label class="${cls}"><span>Funktion</span><select data-change="func" data-target="${target}">${l.map(id => `<option value="${esc(id)}" ${id === cur ? 'selected' : ''}>${esc(funcName(id))}</option>`).join('')}</select></label>`;
 }
-// Satzart für neuen Eintrag setzen (Projektwechsel, Anlegen)
-function fixLevel(o) { const p = proj(o.projectId), l = p ? levelChoices(p) : []; o.rateLevel = l.length > 1 ? (l.includes(o.rateLevel) ? o.rateLevel : defaultLevel(p)) : 0; }
+// Funktion für Eintrag/Entwurf setzen (Projektwechsel, Anlegen): eine einzige Funktion wird automatisch gewählt
+function fixFunc(o) { const p = proj(o.projectId), l = p ? funcChoices(p) : []; o.funcId = l.length ? (l.includes(o.funcId) ? o.funcId : defaultFunc(p)) : ''; }
 function amountOf(e) { return e.billable ? dur(e) / HOUR * rateOf(e) : 0; }
 
 /* ---------- Icons ---------- */
@@ -267,7 +271,8 @@ function previewBanner() {
     <button class="btn small" data-action="preview-end">Vorschau beenden</button></div>` : '';
 }
 const meId = () => S.sync?.userId || null;
-const canSeeRates = () => { const r = role(); return r.admin || r.pl || r.bh; };
+// Stundensätze und Beträge sehen nur Administrator und Buchhaltung (Projektleiter und Mitarbeiter nicht)
+const canSeeRates = () => { const r = role(); return r.admin || r.bh; };
 // Projekte anlegen/pflegen: Administrator und Buchhaltung. Projektleiter ordnet nur sein Team zu.
 const canCreateProject = () => { const r = role(); return r.admin || r.bh; };
 const canEditProject = () => { const r = role(); return r.admin || r.bh; };
@@ -375,7 +380,7 @@ function entryRowHTML(e) {
         <button class="proj-btn e-proj" data-action="pick-project" data-target="${e.id}">${projLabel(e.projectId, 'ohne Projekt')}</button>
         ${locked ? `<span class="chip lock-chip" title="Projekt abgeschlossen">${ic('lock')} abgeschlossen</span>` : ''}
         ${tags.length ? `<span class="e-tags">${tags.map(t => `<span class="chip">${esc(t.name)}</span>`).join('')}</span>` : ''}
-        ${e.billable && levelChoices(proj(e.projectId)).length > 1 ? `<span class="chip rate-chip" title="Satzart">€ ${esc(kindName(e.rateLevel || 0))}</span>` : ''}
+        ${e.billable && e.funcId && funcName(e.funcId) && funcChoices(proj(e.projectId)).length > 1 ? `<span class="chip rate-chip" title="Funktion">€ ${esc(funcName(e.funcId))}</span>` : ''}
       </div>
       <button class="e-desc" data-action="edit-entry" data-id="${e.id}" title="${esc(e.description)}">${e.description ? esc(e.description) : '<span class="muted">(ohne Kommentar)</span>'}</button>
     </div>
@@ -483,10 +488,10 @@ function addManual() {
   if (s == null) return toast('Bitte Beginn, Ende und Datum angeben');
   const d = UI.draft;
   if (!d.projectId && visibleProjects().some(p => !p.archived) && !confirm('Kein Projekt gewählt. Eintrag trotzdem ohne Projekt speichern?')) return;
-  fixLevel(d);
-  entryStore().push({ id: uid(), description: d.description.trim(), projectId: d.projectId, tagIds: [...d.tagIds], billable: d.billable, rateLevel: d.billable ? d.rateLevel : 0, start: s, end: e });
-  // Projekt und Satzart bleiben für den nächsten Eintrag gewählt; Kommentar, Tags und Ende werden geleert
-  UI.draft = { ...emptyDraft(), projectId: d.projectId, billable: d.billable, rateLevel: d.rateLevel };
+  fixFunc(d);
+  entryStore().push({ id: uid(), description: d.description.trim(), projectId: d.projectId, tagIds: [...d.tagIds], billable: d.billable, funcId: d.billable ? d.funcId : '', start: s, end: e });
+  // Projekt und Funktion bleiben für den nächsten Eintrag gewählt; Kommentar, Tags und Ende werden geleert
+  UI.draft = { ...emptyDraft(), projectId: d.projectId, billable: d.billable, funcId: d.funcId };
   UI.manual = { date: UI.manual.date, start: UI.manual.end, end: '' };
   save(); render(); toast('Eintrag hinzugefügt');
 }
@@ -574,7 +579,7 @@ function openProjectPicker(anchor, target) {
     };
     const choose = id => {
       closePopover();
-      applyTarget(target, o => { o.projectId = id; const p = proj(id); if (p) o.billable = !!p.billable; fixLevel(o); });
+      applyTarget(target, o => { o.projectId = id; const p = proj(id); if (p) o.billable = !!p.billable; fixFunc(o); });
     };
     listEl.addEventListener('click', ev => {
       const b = ev.target.closest('button');
@@ -712,7 +717,7 @@ function renderEntryModal() {
     const sync = () => {
       d.description = $('#md-desc', m).value;
       const wasBill = d.billable; d.billable = $('#md-bill', m).checked;
-      if (d.billable !== wasBill) { fixLevel(d); renderEntryModal(); return; } // Satzart-Auswahl ein-/ausblenden
+      if (d.billable !== wasBill) { fixFunc(d); renderEntryModal(); return; } // Funktions-Auswahl ein-/ausblenden
       d.date = $('#md-date', m).value; d.startT = $('#md-start', m).value; d.endT = $('#md-end', m).value;
       const [s, e] = rangeFrom(d.date, d.startT, d.endT);
       $('#md-dur', m).textContent = s != null ? fmtClock(e - s) : '–';
@@ -728,8 +733,8 @@ function saveEntryModal() {
   if (!e) return closeModal();
   const [s, en] = rangeFrom(d.date, d.startT, d.endT);
   if (s == null) return toast('Bitte Datum, Beginn und Ende angeben');
-  fixLevel(d);
-  Object.assign(e, { description: d.description.trim(), projectId: d.projectId, tagIds: d.tagIds, billable: d.billable, rateLevel: d.billable ? d.rateLevel : 0, start: s, end: en });
+  fixFunc(d);
+  Object.assign(e, { description: d.description.trim(), projectId: d.projectId, tagIds: d.tagIds, billable: d.billable, funcId: d.billable ? d.funcId : '', start: s, end: en });
   save(); closeModal(); render(); toast('Gespeichert');
 }
 
@@ -827,6 +832,7 @@ function groupKeys(e, by) {
     }
     case 'description': return [[e.description || '-', e.description || '(ohne Beschreibung)', e.description ? hashColor(e.description) : NO_COLOR]];
     case 'day': { const k = startOfDay(e.start); return [[k, dayLabel(k), COLORS[0]]]; }
+    case 'func': { const n = e.billable ? funcName(e.funcId) : ''; return [[n ? e.funcId : '-', n || 'Ohne Funktion', n ? hashColor(e.funcId) : NO_COLOR]]; }
     case 'user': return [[e.userId || 'me', e.userName || S.settings.userName || 'Ich', hashColor(e.userId || 'me')]];
     default: return [[p?.id || '-', p ? p.name + (client(p.clientId) ? ' · ' + client(p.clientId).name : '') : 'Ohne Projekt', p?.color || NO_COLOR]];
   }
@@ -948,9 +954,9 @@ function viewReports() {
     <div class="card chart"><div class="card-body">${barChartSVG(list, from, to)}</div></div>
     <div class="card section-gap">
       <div class="card-head">Aufschlüsselung nach
-        <span class="print-inline">${({ user: 'Mitarbeiter', project: 'Projekt', client: 'Kunde', tag: 'Tag', description: 'Beschreibung', day: 'Datum' })[R.groupBy] || ''}</span>
+        <span class="print-inline">${({ user: 'Mitarbeiter', project: 'Projekt', client: 'Kunde', tag: 'Tag', func: 'Funktion', description: 'Beschreibung', day: 'Datum' })[R.groupBy] || ''}</span>
         <select name="groupBy" data-change="rep" class="no-print" style="height:32px;border:1px solid var(--border);border-radius:4px;background:var(--surface);padding:0 6px">
-          ${[...(isTeam ? [['user', 'Mitarbeiter']] : []), ['project', 'Projekt'], ['client', 'Kunde'], ['tag', 'Tag'], ['description', 'Beschreibung'], ['day', 'Tag (Datum)']].map(([v, t]) => opt(v, t, R.groupBy)).join('')}
+          ${[...(isTeam ? [['user', 'Mitarbeiter']] : []), ['project', 'Projekt'], ['client', 'Kunde'], ['tag', 'Tag'], ...(money && funcList().length ? [['func', 'Funktion']] : []), ['description', 'Beschreibung'], ['day', 'Tag (Datum)']].map(([v, t]) => opt(v, t, R.groupBy)).join('')}
         </select>
       </div>
       <div class="card-body breakdown">
@@ -1027,12 +1033,12 @@ function printHeadHTML(label, from, to, isTeam, users) {
 // Tabelle für CSV und Excel (Zahlen bleiben Zahlen, damit Excel rechnen kann)
 function reportTable() {
   const { from, to, label } = reportRange(), list = reportEntries(from, to), money = canSeeRates();
-  const head = ['Datum', 'Beginn', 'Ende', 'Dauer (h:mm:ss)', 'Dauer (Stunden)', 'Beschreibung', 'Projekt', 'Kunde', 'Tags', 'Abrechenbar', ...(money ? ['Satzart', 'Stundensatz', 'Betrag'] : []), 'Mitarbeiter'];
+  const head = ['Datum', 'Beginn', 'Ende', 'Dauer (h:mm:ss)', 'Dauer (Stunden)', 'Beschreibung', 'Projekt', 'Kunde', 'Tags', 'Abrechenbar', ...(money ? ['Funktion', 'Stundensatz', 'Betrag'] : []), 'Mitarbeiter'];
   const rows = list.map(e => {
     const p = proj(e.projectId), c = client(p?.clientId);
     return [fmtD(e.start), fmtTime(e.start), fmtTime(e.end), fmtClock(dur(e)), +(dur(e) / HOUR).toFixed(2), e.description,
       p?.name || '', c?.name || '', e.tagIds.map(tag).filter(Boolean).map(t => t.name).join(', '),
-      e.billable ? 'Ja' : 'Nein', ...(money ? [e.billable && levelChoices(p).length > 1 ? kindName(e.rateLevel || 0) : '', +rateOf(e).toFixed(2), +amountOf(e).toFixed(2)] : []), e.userName || UI.actAs?.name || S.settings.userName];
+      e.billable ? 'Ja' : 'Nein', ...(money ? [e.billable ? funcName(e.funcId) : '', +rateOf(e).toFixed(2), +amountOf(e).toFixed(2)] : []), e.userName || UI.actAs?.name || S.settings.userName];
   });
   return { head, rows, file: 'Stundenbericht_' + label.replace(/[^\wäöüÄÖÜß.-]+/g, '_') };
 }
@@ -1387,12 +1393,12 @@ function projectTableHTML() {
       const es = entryStore().filter(e => e.projectId === p.id), edit = canEditProject(p), team = cloud && canEditTeam(p), tn = teamNames(p);
       const open = canTrack() && !p.archived; // Klick auf den Namen → Zeiterfassung für dieses Projekt
       return `<tr class="${p.archived ? 'archived' : ''}">
-        <td><button class="name-cell ${open ? 'name-open' : ''}" ${open ? `data-action="open-project" data-id="${p.id}" title="Zeit für dieses Projekt eintragen"` : edit ? `data-action="edit-project" data-id="${p.id}"` : ''}><span class="dot" style="background:${p.color}"></span>${esc(p.name)}${p.archived ? ` <span class="chip lock-chip">${ic('lock')} abgeschlossen</span>` : ''}${money && p.billable && !projRates(p).some(v => v > 0) ? ' <span class="chip warn">Stundensatz fehlt</span>' : ''}${cloud && admin && !p.listId ? ' <span class="chip">Rechte ausstehend</span>' : ''}</button></td>
+        <td><button class="name-cell ${open ? 'name-open' : ''}" ${open ? `data-action="open-project" data-id="${p.id}" title="Zeit für dieses Projekt eintragen"` : edit ? `data-action="edit-project" data-id="${p.id}"` : ''}><span class="dot" style="background:${p.color}"></span>${esc(p.name)}${p.archived ? ` <span class="chip lock-chip">${ic('lock')} abgeschlossen</span>` : ''}${money && p.billable && !(Number(p.rate) > 0 || projFuncs(p).some(x => x.rate > 0)) ? ' <span class="chip warn">Stundensatz fehlt</span>' : ''}${cloud && admin && !p.listId ? ' <span class="chip">Rechte ausstehend</span>' : ''}</button></td>
         <td class="hide-mobile">${esc(client(p.clientId)?.name || '–')}</td>
         ${cloud ? `<td class="hide-mobile">${p.leadName ? esc(p.leadName) : '<span class="warn-text">fehlt</span>'}</td>
           <td class="hide-mobile" title="${esc(tn.join(', '))}">${tn.length ? tn.length + (tn.length === 1 ? ' Person' : ' Personen') : '<span class="muted">–</span>'}</td>` : ''}
         <td class="num">${fmtDur(sum(es))}</td>
-        ${money ? `<td class="num hide-mobile">${projRates(p).some(v => v != null) ? projRates(p).map((v, i) => v == null ? null : (rateKinds().length > 1 ? `<span class="muted small">${esc(kindName(i))}:</span> ` : '') + fmtMoney(v)).filter(Boolean).join('<br>') : p.billable ? '<span class="warn-text">fehlt</span>' : '<span class="muted">–</span>'}</td>` : ''}
+        ${money ? `<td class="num hide-mobile">${(projFuncs(p).some(x => x.rate > 0) || p.rate != null) ? [...(p.rate != null && !projFuncs(p).length ? [fmtMoney(Number(p.rate))] : []), ...projFuncs(p).filter(x => x.rate > 0).map(x => `<span class="muted small">${esc(funcName(x.id) || '?')}:</span> ${fmtMoney(x.rate)}`)].join('<br>') : p.billable ? '<span class="warn-text">fehlt</span>' : '<span class="muted">–</span>'}</td>` : ''}
         <td class="act">
           ${open ? `<button class="icon-btn" data-action="open-project" data-id="${p.id}" title="Zeit eintragen">${ic('clock')}</button>` : ''}
           ${team ? `<button class="icon-btn" data-action="edit-team" data-id="${p.id}" title="Team zuordnen">${ic('users')}</button>` : ''}
@@ -1455,18 +1461,44 @@ function openProjectModal(id, opts = {}) {
     ${leadField}
     <div class="field"><span>Farbe</span><div class="swatches">${COLORS.map(c => `<label class="sw" style="--c:${c}"><input type="radio" name="color" value="${c}" ${c === d.color ? 'checked' : ''}><i></i></label>`).join('')}</div></div>
     <label class="check"><input type="checkbox" name="billable" ${d.billable ? 'checked' : ''}> Einträge standardmäßig abrechenbar</label>
-    ${rateKinds().length
-      ? `<div class="field"><span>Stundensätze in ${esc(S.settings.currency)} <span class="req">*</span> (bei abrechenbaren Projekten mindestens ein Satz; ein leerer Satz wird bei diesem Projekt nicht angeboten)</span>
-          <div class="rate-grid">${rateKinds().map(k => { const key = RATE_KEYS[Number(k.id) - 1]; return `<label class="rate-cell"><span>${esc(k.name)}</span><input name="${key}" type="number" min="0" step="0.01" inputmode="decimal" placeholder="z. B. 95" value="${d[key] ?? ''}"></label>`; }).join('')}</div></div>`
+    ${funcList().length
+      ? `<div class="field fn-field"><span>Vertraglich vereinbarte Funktionen mit Stundensatz in ${esc(S.settings.currency)} <span class="req">*</span> (bei abrechenbaren Projekten mindestens eine)</span>
+          <div class="fn-rows" id="fn-rows"></div>
+          <button type="button" class="btn ghost small fn-add" id="fn-add">${ic('plus')} Funktion hinzufügen</button></div>
+         ${d.rate != null && d.rate !== '' ? `<label class="field"><span>Bisheriger Stundensatz ohne Funktion (gilt für Einträge ohne Funktion)</span><input name="rate" type="number" min="0" step="0.01" inputmode="decimal" value="${d.rate}"></label>` : ''}`
       : `<label class="field"><span>Stundensatz in ${esc(S.settings.currency)} <span class="req">*</span> (Pflicht bei abrechenbaren Projekten)</span>
-          <input name="rate" type="number" min="0" step="0.01" inputmode="decimal" placeholder="z. B. 95" value="${d.rate ?? ''}"></label>`}
+          <input name="rate" type="number" min="0" step="0.01" inputmode="decimal" placeholder="z. B. 95" value="${d.rate ?? ''}"></label>
+         <p class="muted small" style="margin:-6px 0 12px">Verschiedene Funktionen mit eigenen Sätzen (z. B. Bauleiter, Senior Bauleiter) legt ${role().admin ? 'der Administrator unter <b>Einstellungen → Funktionen</b> an' : 'ein Administrator oder die Buchhaltung unter <b>Einstellungen → Funktionen</b> an'}; danach lassen sie sich hier je Vertrag eintragen.</p>`}
     <div class="form-error" id="pf-err" hidden></div>
     <div class="modal-actions"><span class="grow"></span>
       <button type="button" class="btn ghost" id="pf-cancel">Abbrechen</button>
       <button class="btn primary">Speichern</button></div></form>`, m => {
     const f = $('#pf', m), el = f.elements, err = $('#pf-err', m);
-    const firstRate = RATE_KEYS.map(k => el[k]).find(Boolean);
-    if (!p) (opts.name ? firstRate : el.pnumber).focus();
+    // Funktionszeilen: jede Funktion höchstens einmal je Projekt
+    const fnMax = Math.min(FUNC_MAX, funcList().length), box = $('#fn-rows', m);
+    const readRows = () => [...(box ? box.querySelectorAll('.fn-row') : [])].map(r => ({ id: $('select', r).value, rate: $('input', r).value }));
+    const drawRows = rows => {
+      if (!box) return;
+      box.innerHTML = rows.map((r, i) => {
+        const used = new Set(rows.filter((_, j) => j !== i).map(x => x.id));
+        return `<div class="fn-row"><select aria-label="Funktion">${funcList().filter(fn => !used.has(fn.id)).map(fn => `<option value="${esc(fn.id)}" ${fn.id === r.id ? 'selected' : ''}>${esc(fn.name)}</option>`).join('')}</select>
+          <input type="number" min="0" step="0.01" inputmode="decimal" placeholder="Satz in ${esc(S.settings.currency)}" value="${r.rate ?? ''}" aria-label="Stundensatz">
+          <button type="button" class="icon-btn fn-del" title="Zeile entfernen">${ic('trash')}</button></div>`;
+      }).join('') || '<p class="muted small" style="margin:0">Noch keine Funktion – „Funktion hinzufügen“ tippen.</p>';
+      const add = $('#fn-add', m); if (add) add.disabled = rows.length >= fnMax;
+    };
+    if (box) {
+      drawRows(projFuncs(d).filter(x => funcName(x.id)).map(x => ({ id: x.id, rate: x.rate })));
+      if (!p && !readRows().length) drawRows([{ id: funcList()[0].id, rate: '' }]);
+      box.addEventListener('change', ev => { if (ev.target.matches('select')) drawRows(readRows()); });
+      box.addEventListener('click', ev => { const b = ev.target.closest('.fn-del'); if (b) { const i = [...box.children].indexOf(b.closest('.fn-row')), rows = readRows(); rows.splice(i, 1); drawRows(rows); } });
+      $('#fn-add', m).addEventListener('click', () => {
+        const rows = readRows(), free = funcList().find(fn => !rows.some(r => r.id === fn.id));
+        if (free && rows.length < fnMax) { rows.push({ id: free.id, rate: '' }); drawRows(rows); box.querySelector('.fn-row:last-child input').focus(); }
+      });
+    }
+    const firstRate = el.rate || box?.querySelector('.fn-row input');
+    if (!p) (opts.name ? firstRate : el.pnumber)?.focus();
     const pv = () => { $('#pf-preview', m).textContent = projName(el.pnumber.value, el.pname.value) || '–'; };
     el.pnumber.addEventListener('input', pv); el.pname.addEventListener('input', pv); pv();
     // Entwurf eines darunterliegenden Zeiteintrag-Dialogs erhalten
@@ -1475,29 +1507,29 @@ function openProjectModal(id, opts = {}) {
     $('#pf-cancel', m).addEventListener('click', () => { close(); opts.onCancel?.(); });
     f.addEventListener('submit', ev => {
       ev.preventDefault();
-      // Sätze je Satzart; Felder, die es im Dialog nicht gibt, behalten ihren Wert
-      const rv = {};
-      for (const k of RATE_KEYS) {
-        if (!el[k]) { rv[k] = d[k] ?? null; continue; }
-        const s = String(el[k].value).trim().replace(',', '.');
-        rv[k] = s === '' ? null : Number(s);
-      }
+      // Stundensatz ohne Funktion (nur wenn das Feld da ist) und Sätze je Funktion
+      const num = s => { s = String(s ?? '').trim().replace(',', '.'); return s === '' ? null : Number(s); };
+      const rows = readRows().map(r => ({ id: r.id, rate: num(r.rate) }));
       const vals = {
         number: el.pnumber.value.trim(), title: el.pname.value.trim(), name: projName(el.pnumber.value, el.pname.value),
         clientId: el.clientId.value || null,
         color: f.querySelector('[name=color]:checked')?.value || d.color,
-        ...rv, billable: el.billable.checked
+        rate: el.rate ? num(el.rate.value) : (d.rate ?? null), billable: el.billable.checked,
+        funcs: box ? rows : (d.funcs || [])
       };
-      vals.levels = RATE_KEYS.map((k, i) => (rv[k] > 0 ? i : -1)).filter(i => i >= 0); // angebotene Satzarten (auch für Mitarbeiter sichtbar, ohne Beträge)
+      vals.funcIds = projFuncs(vals).filter(x => x.rate > 0).map(x => x.id).sort(); // angebotene Funktionen (auch für Mitarbeiter sichtbar, ohne Beträge)
       if (cloud) {
         vals.leadId = admin ? (el.leadId.value || null) : d.leadId || null;
         vals.leadName = vals.leadId ? (S.roles.find(r => r.id === vals.leadId)?.name || d.leadName || '') : '';
         vals.memberIds = (d.memberIds || []).filter(id => id !== vals.leadId);
       }
       if (!vals.name) return fail('Bitte Projektnummer oder Projektbezeichnung eingeben.', el.pnumber);
-      const badKey = RATE_KEYS.find(k => rv[k] != null && (isNaN(rv[k]) || rv[k] < 0));
-      if (badKey) return fail('Bitte einen gültigen Stundensatz eingeben.', el[badKey] || firstRate);
-      if (vals.billable && !vals.levels.length) return fail('Für abrechenbare Projekte ist mindestens ein Stundensatz Pflicht. Bitte eintragen oder „abrechenbar“ abwählen.', firstRate);
+      const emptyRow = rows.findIndex(r => r.rate == null);
+      if (emptyRow >= 0) return fail('Bitte für jede Funktion einen Stundensatz eintragen oder die Zeile entfernen.', box.querySelectorAll('.fn-row input')[emptyRow]);
+      const bad = rows.findIndex(r => isNaN(r.rate) || r.rate < 0);
+      if (bad >= 0) return fail('Bitte einen gültigen Stundensatz eingeben.', box.querySelectorAll('.fn-row input')[bad]);
+      if (vals.rate != null && (isNaN(vals.rate) || vals.rate < 0)) return fail('Bitte einen gültigen Stundensatz eingeben.', el.rate);
+      if (vals.billable && !(vals.rate > 0 || vals.funcIds.length)) return fail('Für abrechenbare Projekte ist mindestens ein Stundensatz Pflicht. Bitte eintragen oder „abrechenbar“ abwählen.', firstRate);
       let pid = p?.id;
       if (p) Object.assign(p, vals); else { pid = uid(); S.projects.push({ id: pid, archived: false, ...vals }); }
       save(); close();
@@ -1558,7 +1590,7 @@ function viewUsers() {
     <div class="card"><div class="card-head">Was die Rollen dürfen</div><div class="card-body">
       <ul class="help-list">
         <li><b>Administrator:</b> alles, auch Benutzer & Rollen und Tags; legt Projekte an und <b>ordnet die Projektleiter zu</b>; sieht alle Zeiten und Stundensätze.</li>
-        <li><b>Projektleiter:</b> sieht nur seine Projekte, <b>ordnet diesen Mitarbeiter zu</b> (Team) und sieht alle Zeiten darauf; legt keine Projekte an.</li>
+        <li><b>Projektleiter:</b> sieht nur seine Projekte, <b>ordnet diesen Mitarbeiter zu</b> (Team) und sieht alle Zeiten darauf, aber keine Stundensätze und Beträge; legt keine Projekte an.</li>
         <li><b>Mitarbeiter:</b> sieht nur Projekte, denen er zugeordnet ist; erfasst eigene Zeiten und sieht nur diese; keine Stundensätze und Beträge.</li>
         <li><b>Buchhaltung:</b> legt Projekte und Kunden an und pflegt Stundensätze; sieht alle Projekte und alle Zeiten mit Beträgen.</li>
         <li><b>Aktiv</b> abwählen, wenn jemand ausscheidet: Zugriff wird entzogen, erfasste Zeiten bleiben erhalten.</li>
@@ -1734,10 +1766,13 @@ function viewSettings() {
         </div>
       </div></div>
       ${window.Cloud ? Cloud.settingsHTML() : ''}
-      ${role().admin ? `<div class="card"><div class="card-head">Satzarten für Stundensätze</div><div class="card-body">
-        <p class="muted small" style="margin-top:0">Bis zu 4 Bezeichnungen, z. B. Senior Bauleiter, Bauleiter, BackOffice. Die Sätze selbst trägt die Buchhaltung bei jedem Projekt ein; beim Eintragen einer Zeit wählt man die passende Satzart. Leer lassen = nur ein Stundensatz je Projekt.</p>
-        ${[1, 2, 3, 4].map(n => `<label class="field"><span>Satzart ${n}</span><input name="ratekind${n}" data-change="ratekind" value="${esc((S.ratekinds || []).find(k => k.id === String(n))?.name || '')}" placeholder="${['Senior Bauleiter', 'Bauleiter', 'BackOffice', 'weitere'][n - 1]}" maxlength="40" autocomplete="off"></label>`).join('')}
+      ${(role().admin || role().bh) ? `<div class="card"><div class="card-head">Funktionen (für Stundensätze)</div><div class="card-body">
+        <p class="muted small" style="margin-top:0">Gemeinsame Liste der Funktionen, z. B. Junior Bauleiter, Bauleiter, Senior Bauleiter, Back Office, Projektleiter, Senior Projektleiter. Welche Funktionen mit welchem Stundensatz zu einem Projekt gehören (je Vertrag), trägt man <b>beim Projekt</b> ein; höchstens ${FUNC_MAX} je Projekt.</p>
+        ${funcList().map(fn => `<div class="fn-set"><input class="fs-name" data-change="func-name" data-id="${esc(fn.id)}" value="${esc(fn.name)}" maxlength="40" aria-label="Funktion"><button class="icon-btn" data-action="func-del" data-id="${esc(fn.id)}" title="Löschen">${ic('trash')}</button></div>`).join('') || '<p class="muted small">Noch keine Funktionen.</p>'}
+        <form class="fn-new" data-form="add-functions"><input type="text" name="n" placeholder="Neue Funktion, z. B. Senior Bauleiter" maxlength="40" autocomplete="off"><button class="btn primary small">HINZUFÜGEN</button></form>
+        ${funcList().length ? '' : `<button class="btn ghost small" data-action="func-default" style="margin-top:8px">Vorschlag einsetzen (Junior Bauleiter … Senior Projektleiter)</button>`}
       </div></div>` : ''}
+      
       <div class="card"><div class="card-head">Daten</div><div class="card-body">
         <p class="muted" style="margin-top:0">${S.entries.length} Zeiteinträge, ${S.projects.length} Projekte, ${S.clients.length} Kunden, ${S.tags.length} Tags – ${cloudOn() ? 'in SharePoint gespeichert, mit Offline-Kopie auf diesem Gerät' : 'lokal auf diesem Gerät gespeichert'}.</p>
         <div class="data-actions">
@@ -1836,7 +1871,7 @@ const ACTIONS = {
   'save-entry': saveEntryModal,
   'pick-project': el => (entryLocked(el.dataset.target) ? lockedToast() : openProjectPicker(el, el.dataset.target)),
   'pick-tags': el => (entryLocked(el.dataset.target) ? lockedToast() : openTagPicker(el, el.dataset.target)),
-  'toggle-billable': el => (entryLocked(el.dataset.target) ? lockedToast() : applyTarget(el.dataset.target, o => { o.billable = !o.billable; fixLevel(o); })),
+  'toggle-billable': el => (entryLocked(el.dataset.target) ? lockedToast() : applyTarget(el.dataset.target, o => { o.billable = !o.billable; fixFunc(o); })),
   'load-more': () => { UI.weeksShown += 4; render(); },
   'close-modal': closeModal,
   'rep-shift': el => { UI.report.offset += Number(el.dataset.d); render(); },
@@ -1903,6 +1938,21 @@ const ACTIONS = {
   'cloud-sync': () => Cloud.sync(),
   'cloud-status': () => window.APP_UPDATE ? updateNow() : Cloud.statusClick(),
   'team-refresh': () => { Cloud.refreshTeam(); render(); },
+  'func-del': el => {
+    const fn = (S.functions || []).find(x => x.id === el.dataset.id);
+    if (!fn) return;
+    const inP = S.projects.filter(p => projFuncs(p).some(x => x.id === fn.id) || (p.funcIds || []).includes(fn.id)).length;
+    if (!confirm(`Funktion „${fn.name}“ löschen?${inP ? `\n\nSie ist bei ${inP} Projekt(en) eingetragen. Diese Sätze entfallen; bisherige Einträge werden mit dem Satz des Projekts weiter berechnet.` : ''}`)) return;
+    S.functions = S.functions.filter(x => x.id !== fn.id);
+    S.projects.forEach(p => { if (p.funcs) p.funcs = p.funcs.filter(x => x.id !== fn.id); if (p.funcIds) p.funcIds = p.funcIds.filter(x => x !== fn.id); });
+    save(); render(); toast('Funktion gelöscht');
+  },
+  'func-default': () => {
+    for (const name of ['Junior Bauleiter', 'Bauleiter', 'Senior Bauleiter', 'Back Office', 'Projektleiter', 'Senior Projektleiter']) {
+      if (!(S.functions || []).some(x => x.name.toLowerCase() === name.toLowerCase())) (S.functions ||= []).push({ id: nextFuncId(), name });
+    }
+    save(); render(); toast('Funktionen angelegt');
+  },
   'export-json': exportJSON,
   'import-json': () => $('#import-file').click(),
   'load-demo': loadDemo,
@@ -1930,17 +1980,17 @@ document.addEventListener('change', ev => {
     UI.report[el.name] = el.value;
     if (el.name === 'range') UI.report.offset = 0;
     render();
-  } else if (k === 'ratekind') {
-    if (!role().admin) return;
-    const f = el.closest('.card-body');
-    S.ratekinds = [1, 2, 3, 4].map(n => ({ id: String(n), name: String(f.querySelector(`[name=ratekind${n}]`).value || '').trim() })).filter(x => x.name);
-    save(); toast('Satzarten gespeichert');
-  } else if (k === 'rate-level') {
-    const lv = Number(el.value); S.settings.lastRateLevel = lv; // zuletzt gewählte Satzart merken (Vorbelegung)
-    if (el.dataset.target === 'modal') { UI.modalDraft.rateLevel = lv; }
-    else applyTarget(el.dataset.target, o => { o.rateLevel = lv; });
-    save();
-  } else if (k === 'proj-arch') { UI.showArchived = el.checked; render(); }
+  } else if (k === 'func-name') {
+    const fn = (S.functions || []).find(x => x.id === el.dataset.id), v = el.value.trim();
+    if (!fn) return;
+    if (!v) { el.value = fn.name; return; }
+    if (funcList().some(x => x.id !== fn.id && x.name.toLowerCase() === v.toLowerCase())) { el.value = fn.name; return toast('Existiert bereits'); }
+    fn.name = v; save(); toast('Funktion umbenannt');
+  } else if (k === 'func') {
+    S.settings.lastFuncId = el.value; // zuletzt gewählte Funktion merken (Vorbelegung)
+    if (el.dataset.target === 'modal') { UI.modalDraft.funcId = el.value; }
+    else applyTarget(el.dataset.target, o => { o.funcId = el.value; });
+    save();  } else if (k === 'proj-arch') { UI.showArchived = el.checked; render(); }
   else if (k === 'role') setRole(el.dataset.id, el.dataset.role, el.checked);
   else if (k === 'role-active') setActive(el.dataset.id, el.checked);  else if (k === 'import') { importJSON(el.files[0]); el.value = ''; }
 });
@@ -1952,8 +2002,10 @@ document.addEventListener('submit', ev => {
   const name = f.elements.n.value.trim();
   if (!name) return;
   const kind = k.replace('add-', '');
+  S[kind] = S[kind] || [];
   if (S[kind].some(x => x.name.toLowerCase() === name.toLowerCase())) return toast('Existiert bereits');
-  S[kind].push({ id: uid(), name }); save(); render();
+  // Funktionen: sortierbare Nummern-ID (Reihenfolge der Anlage), sonst zufällige ID
+  S[kind].push({ id: kind === 'functions' ? nextFuncId() : uid(), name }); save(); render();
   $('[data-form] input')?.focus();
 });
 
