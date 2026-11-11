@@ -21,7 +21,7 @@ const HELP = [
     <ol>
       <li>Auf der Startseite (<b>Projekte</b>) auf den <b>Projektnamen</b> tippen. Das Eingabefenster öffnet sich mit diesem Projekt. (Alternativ: Menü <b>Zeiterfassung</b> → „Projekt wählen“.)</li>
       <li>Im umrandeten Feld <b>Kommentar</b> eintragen, was Sie gemacht haben – z. B. „Begehung Heizraum mit Hausmeister“. Mehrere Zeilen sind möglich.</li>
-      <li><b>„Tag wählen“</b> tippen und die Art der Tätigkeit wählen, z. B. „Ortstermin“. Das <b>€-Feld</b> (abrechenbar) ist vom Projekt vorbelegt. Hat das Projekt mehrere Stundensätze, erscheint daneben die <b>Satzart</b> (z. B. Senior Bauleiter, Bauleiter, BackOffice) – wählen Sie die, mit der Ihre Zeit abgerechnet wird. Die zuletzt gewählte Satzart bleibt vorbelegt. Beim Diktieren sagen Sie z. B. „… als Bauleiter“.</li>
+      <li><b>„Tag wählen“</b> tippen und die Art der Tätigkeit wählen, z. B. „Ortstermin“. Das <b>€-Feld</b> (abrechenbar) ist vom Projekt vorbelegt. Hat das Projekt mehrere vertraglich vereinbarte Funktionen, erscheint daneben die <b>Funktion</b> (z. B. Bauleiter, Senior Bauleiter, Back Office) – wählen Sie die, in der Sie gearbeitet haben. Die zuletzt gewählte Funktion bleibt vorbelegt. Beim Diktieren sagen Sie z. B. „… als Bauleiter“.</li>
       <li><b>Datum</b>, <b>Beginn</b> und <b>Ende</b> eintragen – die Dauer wird angezeigt. Arbeit über Mitternacht wird erkannt.</li>
       <li><b>HINZUFÜGEN</b> tippen. Der Eintrag erscheint in der Liste darunter.</li>
     </ol>
@@ -126,7 +126,7 @@ const HELP = [
       <li>Links auf <b>Projekte</b> → <b>NEUES PROJEKT</b>.</li>
       <li><b>Projektnummer</b> und <b>Projektbezeichnung</b> eintragen (beide sind einzeln optional, mindestens eines muss ausgefüllt sein; in der App erscheint „Nummer – Bezeichnung“). Dazu Kunde und Farbe festlegen. Den <b>Projektleiter</b> wählt der Administrator aus.</li>
       <li><b>„Einträge standardmäßig abrechenbar“</b> anhaken, wenn die Zeiten abgerechnet werden – dann ist mindestens ein <b>Stundensatz Pflicht</b>.</li>
-      <li><b>Mehrere Stundensätze:</b> Der Administrator legt unter <b>Einstellungen → Satzarten für Stundensätze</b> bis zu 4 Bezeichnungen an (z. B. Senior Bauleiter, Bauleiter, BackOffice). Danach trägt man beim Projekt für jede Satzart den Satz ein; leer = diese Satzart wird bei dem Projekt nicht angeboten. Wer Zeiten erfasst, wählt pro Eintrag die Satzart; Berichte und Export rechnen mit dem Satz der gewählten Satzart und zeigen sie an.</li>
+      <li><b>Funktionen mit Stundensätzen je Vertrag:</b> Der Administrator oder die Buchhaltung legt einmalig unter <b>Einstellungen → Funktionen</b> die gemeinsame Liste an (z. B. Junior Bauleiter, Bauleiter, Senior Bauleiter, Back Office, Projektleiter, Senior Projektleiter – „Vorschlag einsetzen“ trägt diese sechs ein). <b>Beim Projekt</b> trägt man dann die vertraglich vereinbarten Funktionen mit ihrem Stundensatz ein (höchstens 6, jede Funktion einmal, „+ Funktion hinzufügen“). Wer Zeiten erfasst, wählt pro Eintrag die Funktion; Berichte und Export rechnen mit dem Satz dieser Funktion und können nach Funktion aufschlüsseln.</li>
       <li><b>Speichern.</b></li>
     </ol>
     <ul>
@@ -159,7 +159,7 @@ const HELP = [
       <li>Bei einer einzelnen Person schlüsselt die App automatisch <b>nach Projekt</b> auf; bei allen zusammen <b>nach Mitarbeiter</b>. Der Einzelnachweis enthält Name, Kommentar, Projekt und Betrag.</li>
       <li>Export über <b>Exportieren</b>: PDF, CSV oder Excel.</li>
     </ol>
-    <p>Beträge = Stunden × Stundensatz des Projekts (bei mehreren Satzarten: der gewählten Satzart), nur für abrechenbare Zeiten.</p>`
+    <p>Beträge = Stunden × Stundensatz des Projekts (bei mehreren Funktionen: der gewählten Funktion), nur für abrechenbare Zeiten.</p>`
   },
   {
     roles: ['admin'], title: 'Administration: Benutzer & Rollen', body: `

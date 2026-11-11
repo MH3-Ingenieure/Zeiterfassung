@@ -5,14 +5,21 @@
    CHANGELOG.md und den Cache-Namen in sw.js mitziehen.
    Nummerierung: Hauptversion.Funktion.Korrektur (z. B. 1.9.1)
    ===================================================================== */
-const APP_VERSION = '1.19.0';
+const APP_VERSION = '1.20.0';
 const APP_RELEASE_DATE = '12.11.2026';
 
 const CHANGELOG = [
   {
+    v: '1.20.0', date: '12.11.2026', title: 'Funktionen mit Stundensätzen je Projekt (Vertrag)', items: [
+      'Ersetzt die einheitlichen Satzarten aus 1.19.0: Die Stundensätze gelten je Projekt, weil die Verträge unterschiedlich sind. Unter Einstellungen → Funktionen führen Administrator und Buchhaltung eine gemeinsame Liste (z. B. Junior Bauleiter, Bauleiter, Senior Bauleiter, Back Office, Projektleiter, Senior Projektleiter; „Vorschlag einsetzen“ trägt diese sechs ein).',
+      'Beim Projekt werden die vertraglich vereinbarten Funktionen mit je einem Stundensatz eingetragen (höchstens 6, jede Funktion einmal).',
+      'Beim Eintragen einer Zeit wird die Funktion gewählt (auch im Bearbeiten-Dialog und beim Diktieren: „… als Bauleiter“); die zuletzt gewählte bleibt vorbelegt. Berichte und Export rechnen mit dem Satz der Funktion und können nach Funktion aufschlüsseln.',
+      'Ohne Funktionen bleibt es bei einem Stundensatz je Projekt; bestehende Einträge und Projekte bleiben unverändert. In 1.19.0 probeweise eingetragene Satzarten und Sätze entfallen (bitte neu eintragen).'
+    ]
+  },
+  {
     v: '1.19.0', date: '12.11.2026', title: 'Projektnummer, Projektbezeichnung und bis zu 4 Stundensätze', items: [
-      'Stundensätze: Der Administrator legt unter Einstellungen bis zu 4 Satzarten an (z. B. Senior Bauleiter, Bauleiter, BackOffice). Je Projekt trägt die Buchhaltung für jede Satzart einen Satz ein; beim Eintragen einer Zeit wird die Satzart gewählt (auch im Bearbeiten-Dialog und beim Diktieren: „… als Bauleiter“). Berichte und Export rechnen mit dem gewählten Satz und zeigen die Satzart an.',
-      'Ohne eingerichtete Satzarten bleibt es bei einem Stundensatz je Projekt; bestehende Einträge und Projekte bleiben unverändert (Satzart 1).',
+      'Stundensätze: Der Administrator legt unter Einstellungen bis zu 4 Satzarten an (z. B. Senior Bauleiter, Bauleiter, BackOffice). Je Projekt trägt die Buchhaltung für jede Satzart einen Satz ein; beim Eintragen einer Zeit wird die Satzart gewählt. (In 1.20.0 durch Funktionen je Projekt ersetzt.)',
       'Projekte haben zwei Felder: Projektnummer und Projektbezeichnung. Beide sind einzeln optional, mindestens eines muss ausgefüllt sein.',
       'Angezeigt wird „Nummer – Bezeichnung“ (überall: Auswahl, Listen, Berichte, Export). Bestehende Projekte behalten ihren Namen als Bezeichnung.',
       'Diktieren: Es genügt die Bezeichnung; wird die Projektnummer genannt, ist das Projekt sofort sicher erkannt.',

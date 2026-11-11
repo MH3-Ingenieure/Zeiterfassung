@@ -246,7 +246,7 @@ function dzBatch(text) {
 
 function parseDictation(text) {
   let rest = ' ' + text + ' ';
-  const r = { date: null, start: null, end: null, projectId: null, candidates: [], tagIds: [], comment: '', assumed: [], rateLevel: null };
+  const r = { date: null, start: null, end: null, projectId: null, candidates: [], tagIds: [], comment: '', assumed: [], funcId: null };
   // 1) Uhrzeiten
   let m = rest.match(DZ_BETWEEN_RE) || rest.match(DZ_RANGE_RE); // „zwischen 14 und 15 Uhr“, „von 9 bis 12“, „9–12“
   if (m) {
@@ -297,11 +297,11 @@ function parseDictation(text) {
   const tagW = S.tags.filter(t => r.tagIds.includes(t.id)).flatMap(t => dzNorm(t.name).split(' ').filter(w => w.length >= 4));
   const tagTok = []; // entfernte Tätigkeitswörter (für „Besprechung mit dem Bauherrn“)
   if (tagW.length) rest = rest.split(/(\s+)/).map(tok => { if (isHit(tok, tagW, (n, tw) => dzTagWord(n, tw))) { tagTok.push(tok.replace(/[,.;:]+$/, '')); return ' '; } return tok; }).join('');
-  // 4b) Satzart genannt („… als Senior Bauleiter“, „Satzart BackOffice“) – nur mit Stichwort, damit „Besprechung mit dem Bauleiter“ nicht fälschlich zählt
+  // 4b) Funktion genannt („… als Senior Bauleiter“, „Funktion Back Office“) – nur mit Stichwort, damit „Besprechung mit dem Bauleiter“ nicht fälschlich zählt
   const reEsc = s => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-  for (const k of [...rateKinds()].sort((a, b) => b.name.length - a.name.length)) { // „Senior Bauleiter“ vor „Bauleiter“
-    const rx = new RegExp('\\b(?:als|satz|satzart|stufe)\\s+(?:der\\s+|die\\s+|den\\s+)?(?<![\\wäöüÄÖÜß])' + k.name.trim().split(/[\s-]+/).map(reEsc).join('[\\s-]*') + '(?![\\wäöüÄÖÜß])', 'i');
-    if (rx.test(rest)) { r.rateLevel = Number(k.id) - 1; rest = rest.replace(rx, ' '); break; }
+  for (const k of [...funcList()].sort((a, b) => b.name.length - a.name.length)) { // „Senior Bauleiter“ vor „Bauleiter“
+    const rx = new RegExp('\\b(?:als|satz|satzart|stufe|funktion)\\s+(?:der\\s+|die\\s+|den\\s+)?(?<![\\wäöüÄÖÜß])' + k.name.trim().split(/[\s-]+/).map(reEsc).join('[\\s-]*') + '(?![\\wäöüÄÖÜß])', 'i');
+    if (rx.test(rest)) { r.funcId = k.id; rest = rest.replace(rx, ' '); break; }
   }
   // 5) Kommentar = was übrig bleibt, ohne Satzzeichen-Reste und Füllwörter am Anfang/Ende
   const FILL = /^(auf|beim|bei|für|fur|im|in|am|um|ab|von|bis|und|zwischen|uhr|ein|eine|einer|stunde|stunden|minuten|projekt|projekte|das|dem|den|der|die|mit|zum|zur|heute|dann|danach|noch|außerdem|ausserdem|anschließend|anschliessend|sowie|jeweils|auch|täglich|taglich)$/i;
@@ -483,7 +483,7 @@ function openDictate() {
           <div class="field"><span>Ende</span>${timeSelHTML('dz-end-' + i, r.end || '')}</div>
         </div>
         <div class="field"><span>Tags</span><div class="dz-tags">${S.tags.length ? [...S.tags].sort(byName).map(t => `<button type="button" class="chip dz-tag ${r.tagIds.includes(t.id) ? 'on' : ''}" data-tid="${t.id}">${esc(t.name)}</button>`).join(' ') : '<span class="muted">keine Tags angelegt</span>'}</div></div>
-        <div class="field dz-rate" data-want="${r.rateLevel ?? ''}"></div>
+        <div class="field dz-rate" data-want="${esc(r.funcId ?? '')}"></div>
         <label class="field"><span>Kommentar</span><input class="dz-comment" value="${esc(r.comment)}"></label>
         <div class="dz-sum"></div>
       </div>`;
@@ -491,15 +491,15 @@ function openDictate() {
     const readCard = c => {
       const i = c.dataset.i, date = $('.dz-date', c).value, [s, e] = rangeFrom(date, $('#dz-start-' + i, c).value, $('#dz-end-' + i, c).value);
       const lv = $('.dz-level', c);
-      return { s, e, pid: $('.dz-proj', c).value || null, tagIds: [...c.querySelectorAll('.dz-tag.on')].map(b => b.dataset.tid), comment: $('.dz-comment', c).value.trim(), rateLevel: lv ? Number(lv.value) : 0, askedLevel: !!lv };
+      return { s, e, pid: $('.dz-proj', c).value || null, tagIds: [...c.querySelectorAll('.dz-tag.on')].map(b => b.dataset.tid), comment: $('.dz-comment', c).value.trim(), funcId: lv ? lv.value : (funcChoices(proj($('.dz-proj', c).value))[0] || ''), askedFunc: !!lv };
     };
-    // Satzart-Auswahl, wenn das gewählte Projekt mehrere Satzarten hat (Vorrang: aktuelle Wahl, dann Gesprochenes, dann zuletzt benutzt)
+    // Funktions-Auswahl, wenn das gewählte Projekt mehrere Funktionen hat (Vorrang: aktuelle Wahl, dann Gesprochenes, dann zuletzt benutzt)
     const fillRate = c => {
-      const box = $('.dz-rate', c), p = proj($('.dz-proj', c).value), l = p ? levelChoices(p) : [];
+      const box = $('.dz-rate', c), p = proj($('.dz-proj', c).value), l = p ? funcChoices(p) : [];
       if (l.length < 2 || !p.billable) { box.innerHTML = ''; return; }
-      const want = box.dataset.want === '' ? null : Number(box.dataset.want), curSel = $('.dz-level', c), cur = curSel ? Number(curSel.value) : null;
-      const sel = [cur, want].find(x => x != null && l.includes(x)) ?? defaultLevel(p);
-      box.innerHTML = `<span>Satzart</span><select class="dz-level">${l.map(i => `<option value="${i}" ${i === sel ? 'selected' : ''}>${esc(kindName(i))}</option>`).join('')}</select>`;
+      const want = box.dataset.want || null, curSel = $('.dz-level', c), cur = curSel ? curSel.value : null;
+      const sel = [cur, want].find(x => x && l.includes(x)) ?? defaultFunc(p);
+      box.innerHTML = `<span>Funktion</span><select class="dz-level">${l.map(id => `<option value="${esc(id)}" ${id === sel ? 'selected' : ''}>${esc(funcName(id))}</option>`).join('')}</select>`;
       $('.dz-level', box).addEventListener('input', sum);
     };
     const sum = () => {
@@ -557,8 +557,8 @@ function openDictate() {
     saveBtn.addEventListener('click', () => {
       const vals = [...out.querySelectorAll('.dz-card')].map(readCard);
       if (!vals.length || vals.some(v => v.s == null || (!v.pid && needProj()))) return sum();
-      for (const v of vals) entryStore().push({ id: uid(), description: v.comment, projectId: v.pid, tagIds: v.tagIds, billable: !!proj(v.pid)?.billable, rateLevel: v.rateLevel, start: v.s, end: v.e });
-      const asked = vals.filter(v => v.askedLevel).pop(); if (asked) S.settings.lastRateLevel = asked.rateLevel; // Vorbelegung merken
+      for (const v of vals) entryStore().push({ id: uid(), description: v.comment, projectId: v.pid, tagIds: v.tagIds, billable: !!proj(v.pid)?.billable, funcId: proj(v.pid)?.billable ? v.funcId : '', start: v.s, end: v.e });
+      const asked = vals.filter(v => v.askedFunc).pop(); if (asked) S.settings.lastFuncId = asked.funcId; // Vorbelegung merken
       save(); closeModal(); render();
       const v = vals[0], p = proj(v.pid);
       toast(vals.length > 1 ? `${vals.length} Einträge gespeichert (${fmtClock(vals.reduce((a, x) => a + x.e - x.s, 0))})`
